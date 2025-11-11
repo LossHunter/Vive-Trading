@@ -1,0 +1,43 @@
+name: Deploy to Oracle Cloud
+
+# main 브랜치에 푸시될 때마다 워크플로우를 실행합니다.
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    # 최신 버전의 Ubuntu 가상 환경에서 작업을 실행합니다.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to server
+        # appleboy/ssh-action 액션을 사용하여 SSH 접속 및 스크립트 실행
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # VT 디렉토리가 존재하는지 확인합니다.
+            if [ -d "VT" ]; then
+              echo "Project directory exists. Pulling latest changes."
+              cd VT
+              git pull
+              docker compose down
+            else
+              echo "Project directory does not exist. Cloning repository."
+              git clone https://github.com/totalcream/VT.git
+              cd VT
+            fi
+            
+            # Docker Compose로 애플리케이션을 빌드하고 실행합니다.
+            echo "Building and starting application with Docker Compose..."
+            docker compose up --build -d
+            
+            # 사용하지 않는 Docker 리소스(이미지, 빌드 캐시 등)를 정리합니다.
+            echo "Cleaning up unused Docker resources..."
+            docker system prune -af
+            
+            echo "Deployment successful!"
