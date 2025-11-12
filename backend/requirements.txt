@@ -1,4 +1,20 @@
 fastapi
 uvicorn
-openai
+pydantic
 pydantic-settings
+openai
+requests
+
+# RAG & ML
+chromadb
+sentence-transformers
+langchain
+langchain-chroma
+langchain-community
+tqdm
+numpy
+pandas
+scikit-learn
+
+# 기타
+python-dotenv

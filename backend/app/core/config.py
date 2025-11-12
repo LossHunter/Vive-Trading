@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     # vLLM API 키 (필요한 경우). 현재는 비워둡니다.
     VLLM_API_KEY: str = ""
 
+    # Chroma DB 인증 정보 (필요한 경우). 환경 변수에서 읽어옵니다.
+    CHROMA_AUTH_CREDENTIALS: str = "your_secure_password" # Docker Compose에서 설정한 비밀번호와 일치해야 합니다.
+
     # .env 파일을 읽도록 설정 (선택 사항)
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding='utf-8')
 
