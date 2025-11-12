@@ -13,6 +13,9 @@ services:
       - CHROMA_HOST=chroma-db
       - CHROMA_PORT=8000
       - CHROMA_COLLECTION_NAME=trading_cases
+      - CHROMA_AUTH_CREDENTIALS=${CHROMA_AUTH_CREDENTIALS}
+      - VLLM_BASE_URL=${VLLM_BASE_URL}
+      - VLLM_API_KEY=${VLLM_API_KEY}
     depends_on:
       - chroma-db
     networks:
@@ -35,7 +38,7 @@ services:
       - chroma-data:/chroma/chroma
     environment:
       - IS_PERSISTENT=TRUE
-      - CHROMA_SERVER_AUTH_CREDENTIALS=your_secure_password
+      - CHROMA_SERVER_AUTH_CREDENTIALS=${CHROMA_AUTH_CREDENTIALS}
       - CHROMA_SERVER_AUTH_PROVIDER=chromadb.auth.token_authn.TokenAuthenticationServerProvider
     networks:
       - app-network
