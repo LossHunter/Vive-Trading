@@ -1,17 +1,17 @@
 ﻿import { useGoogleLogin } from '@react-oauth/google';
-import '../styles/login.css';
-import { useState, React } from "react";
+import '../styles/Login.css';
 import Google_Login from '../assets/Google_Login.png'
+import { useNavigate } from 'react-router-dom';
 
 export default function LoginModel({ onClose }) {
-    
+    const navigate = useNavigate();
+
     const googleLogin = useGoogleLogin({
         flow: 'auth-code',
 
         onSuccess: (codeResponse) => {
             localStorage.setItem('googleAuthCode', codeResponse.code);
-            setIslogin(true);
-            window.location.reload()
+            window.location.reload();
         },
         onError: (error) => {
             console.log('❌ Google 리디렉션 로그인 실패:', error);

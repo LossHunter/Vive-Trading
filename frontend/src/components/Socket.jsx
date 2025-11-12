@@ -1,11 +1,9 @@
-﻿import { time } from "framer-motion";
-import React, { useEffect, useState } from "react";
-import { data } from "react-router-dom";
+﻿import { useEffect, useState } from "react";
 import useWebSocket from "react-use-websocket";
 
 const protocol = window.location.protocol === "https:" ? "wss" : "ws";
 const host = window.location.host; 
-const WS_URL = `${protocol}://${host}/ws/chartdata`;
+const WS_URL = "ws://localhost:53756/ws/chartdata"; 
 
 export function useSocketData() {
   const [datalist, setDatalist] = useState([]);
