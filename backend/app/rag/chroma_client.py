@@ -158,3 +158,11 @@ class ChromaDBClient:
         except Exception as e:
             logger.error(f"Error getting category distribution: {str(e)}")
             return {}
+
+    def count_documents(self) -> int:
+        """컬렉션의 총 문서 수를 반환"""
+        try:
+            return self.collection.count()
+        except Exception as e:
+            logger.error(f"Error counting documents: {str(e)}")
+            return 0
