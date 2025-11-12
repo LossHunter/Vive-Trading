@@ -1,15 +1,14 @@
 ﻿import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation  } from "react-router-dom";
 import '../styles/home.css';
 import RealTimeCandleChart from '../components/Chart.jsx'
 import Analyze from '../components/AnalyzePanel.jsx';
 
 import WalletList from '../components/Wallet_Rank';
-import LoginModel from './login.jsx';
 
 import { fetchAllData  } from '../components/Http_Get.jsx';
 import { useSocketData } from '../components/Socket.jsx';
 
+import Loading from "../components/Loading.jsx"
 import Header from "../components/Header.jsx";
 
 function data_split(data) {
@@ -96,23 +95,28 @@ function accumulate(init_data) {
 
 
 export default function Home() {
-    const navigate = useNavigate();
     const [bot, setbot] = useState("all");
     const [InitData, setInitData] = useState(null);
     const [LiveData, setLiveData] = useState(null);
     const [MappingData, setMappingData] = useState([]);
 
-    const [isOpen, setIsOpen] = useState(false);
-
     const [sender_chart, setsender_chart] = useState([]);
     const [sender_analyze, setsender_analyze] = useState([]);
     const [sender_wallet, setsender_wallet] = useState([]);
 
+    const [loading, setLoading] = useState(true);
+
     // 초기데이터 불러오기
     useEffect(() => {
         (async () => {
-        const allData = await fetchAllData();
-        setInitData(allData);
+            try {
+                const allData = await fetchAllData();
+                setInitData(allData);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
         })();
     }, []);
 
@@ -155,60 +159,39 @@ export default function Home() {
         }
     }, [MappingData])
 
-    // 로그인 상황 파악
-    const location = useLocation();
-    useEffect(() => {
-        const savedCode = localStorage.getItem("googleAuthCode");
-
-        if (savedCode) {
-            const searchParams = new URLSearchParams(location.search);
-
-            if (searchParams.get("code") !== savedCode) {
-                searchParams.set("code", savedCode);
-                navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
-            }
-        }
-    }, [location, navigate]);
-
-    return (
+   return (
+    <>
+        {loading ? (
+        <Loading />
+        ) : (
         <div className="frame">
             <Header/>
-
             <main>
-                <div className="main-left" >
-                    <div className="bot-selection">
-                        <div className="all-wallet"
-                            onClick={() => setbot("all")}>
-                            All Bot Model</div>
-                        <WalletList sender_wallet={sender_wallet} setbot={setbot} />
-                    </div>
+            <div className="main-left">
+                <div className="bot-selection">
+                <div className="all-wallet" onClick={() => setbot("all")}>
+                    All Bot Model
                 </div>
-                <div className="main-center" >
-                    <RealTimeCandleChart bot={bot} data={sender_chart} />
+                <WalletList sender_wallet={sender_wallet} setbot={setbot} />
                 </div>
-                <div className="main-right" >
-                    <Analyze sender_analyze={sender_analyze} />
-                </div>
+            </div>
+            <div className="main-center">
+                <RealTimeCandleChart bot={bot} data={sender_chart} />
+            </div>
+            <div className="main-right">
+                <Analyze sender_analyze={sender_analyze} />
+            </div>
             </main>
-
             <footer>
-                <div className="footer-content">
-                    <p>
-                        **생성형 AI 1회차 프로젝트** |
-                        AI 기반 투자 분석 및 실시간 트래커 시스템
-                    </p>
-                    <p>
-                        데이터 소스: Upbit WebSocket API |
-                        차트 라이브러리: ApexCharts
-                    </p>
-                    <p>
-                        © 2025 Team [T-Bone]. All Rights Reserved.
-                    </p>
-                </div>
+            <div className="footer-content">
+                <p>**생성형 AI 1회차 프로젝트** | AI 기반 투자 분석 및 실시간 트래커 시스템</p>
+                <p>데이터 소스: Upbit WebSocket API | 차트 라이브러리: ApexCharts</p>
+                <p>© 2025 Team [T-Bone]. All Rights Reserved.</p>
+            </div>
             </footer>
-
-            {isOpen && <LoginModel onClose={() => setIsOpen(false)} />}
         </div>
+        )}
+    </>
     );
 }
 

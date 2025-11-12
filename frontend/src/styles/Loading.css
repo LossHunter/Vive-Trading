@@ -1,32 +1,29 @@
+/* Loading.css */
 .loading-container {
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  height: 100vh; /* 화면 전체 */
-  background: linear-gradient(135deg, #1e1e2f, #3b3b5c);
-  color: #fff;
-  font-family: 'Arial', sans-serif;
+  justify-content: center;
+  height: 100vh; /* 화면 중앙 */
+  background-color: rgba(255, 255, 255, 0.8);
 }
 
 .spinner {
-  width: 60px;
-  height: 60px;
-  border: 6px solid rgba(255, 255, 255, 0.2);
-  border-top-color: #00ffe0;
+  width: 50px;
+  height: 50px;
+  border: 5px solid #f3f3f3; /* 연한 회색 */
+  border-top: 5px solid #3498db; /* 회전 색상 */
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 20px;
-}
-
-.loading-text {
-  font-size: 1.2rem;
-  letter-spacing: 1px;
-  color: #00ffe0;
+  animation: spin 1s linear infinite; /* 애니메이션 적용 */
+  margin-bottom: 10px;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 18px;
+  color: #333;
 }

@@ -8,13 +8,19 @@ import EthuLogo from '../assets/Ethereum_logo.png';
 import DogeLogo from '../assets/Doge_log.png';
 import SolanaLogo from '../assets/Solana_logo.png';
 import XRPLogo from '../assets/XRP_logo.png';
+import { useEffect, useState } from "react";
+
+import LoginModel from './Login.jsx';
 
 export default function Header() {
+    const [isOpen, setIsOpen] =useState(false)
+    const [loginText, setloginText] = useState("Login")
     const navigate = useNavigate();
+
     const goDash = () => {
         const savedCode = localStorage.getItem("googleAuthCode");
         if (!savedCode) {
-            setIsOpen(true); // 로그인 모달 띄움
+            setIsOpen(true);
         } else {
             const searchParams = new URLSearchParams(location.search);
             searchParams.set("code", savedCode); 
@@ -25,6 +31,30 @@ export default function Header() {
         }
     };
 
+    const Login = () => {
+        if (loginText === "Login") {
+            setIsOpen(true);
+        } else {
+            localStorage.removeItem("googleAuthCode");
+            setloginText("Login");
+            window.location.reload();
+        }
+    };
+
+    // 로그인 상황 파악
+    const location = useLocation();
+    useEffect(() => {
+        const savedCode = localStorage.getItem("googleAuthCode");
+        if (savedCode) {
+            const searchParams = new URLSearchParams(location.search);
+            setloginText("LogOut")
+            if (searchParams.get("code") !== savedCode) {
+                searchParams.set("code", savedCode);
+                navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
+            }
+        }
+    }, [location, navigate]);
+    
     const { btcPrice, ethPrice, dogePrice, solPrice, xrpPrice } = useUpbitTicker();
     
     return (
@@ -33,9 +63,8 @@ export default function Header() {
                     <button onClick={() => window.open("https://www.tistory.com/")}>Blog</button>
                     <button
                         className="login-btn"
-                        onClick={() =>
-                            setIsOpen(true) }>
-                        Login</button>
+                        onClick={Login}>
+                        {loginText}</button>
                     <button onClick={goDash}>Dash+</button>
                 </div>
                 <div className="alert">
@@ -95,6 +124,8 @@ export default function Header() {
                         <label>{xrpPrice} KRW</label>
                     </div>
                 </div>
+                
+                {isOpen && <LoginModel onClose={() => setIsOpen(false)} />}
             </header>
     )
 }
