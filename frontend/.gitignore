@@ -1,16 +1,72 @@
-# dependencies
-/node_modules
-
-# build output
-/build
-
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.
+# Logs
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependency directories
+node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+
+# Local environment files
+*.local
+.env
+.env.*.local
+# 프로덕션은 전달 (.env.production 제외)
+!.env.production
+
+# Python virtual environments
+venv/
+.venv/
+env/
+.env/
+myenv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python specific
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+*.egg
+*.manifest
+*.spec
+
+# Database / backup
+*.db
+*.sqlite3
+*.json
+backup/
+
+# Editor directories and files
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Optional: coverage reports
+coverage/
+
+# Temporary / test files
+tmp/
+temp/
+testfile.py

@@ -1,0 +1,50 @@
+﻿.chart-container {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.chart-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 100%;
+    height: 50px;
+    background: transparent;
+}
+
+    /* 버튼 */
+    .chart-title button {
+        position: absolute;
+        left: 10px; /* 좌측에 여백 */
+        padding: 6px 14px;
+        border: none;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #e5e7eb, #d1d5db);
+        color: inherit;
+        font-weight: bold;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+        .chart-title button:hover {
+            background: linear-gradient(135deg, #d1d5db, #9ca3af);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+        }
+
+        .chart-title button:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+
+    /* 제목 텍스트 */
+    .chart-title p {
+        font-size: 20px;
+        font-weight: 700;
+        margin: 0;
+        color: #111;
+    }

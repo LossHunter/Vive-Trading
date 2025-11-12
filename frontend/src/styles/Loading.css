@@ -1,0 +1,32 @@
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh; /* 화면 전체 */
+  background: linear-gradient(135deg, #1e1e2f, #3b3b5c);
+  color: #fff;
+  font-family: 'Arial', sans-serif;
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  border: 6px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #00ffe0;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+.loading-text {
+  font-size: 1.2rem;
+  letter-spacing: 1px;
+  color: #00ffe0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
