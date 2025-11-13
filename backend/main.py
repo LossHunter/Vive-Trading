@@ -6,6 +6,7 @@ FastAPI 메인 애플리케이션
 import asyncio
 import json
 import logging
+import threading
 from datetime import datetime
 from typing import List, Dict, Set, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Body
@@ -15,6 +16,8 @@ from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 
+from app.api.endpoints import llm, market, trading
+from app.rag.document_loader import initialize_rag_data
 from app.core.config import ServerConfig, UpbitAPIConfig, DataCollectionConfig, IndicatorsConfig, WalletConfig
 from app.db.database import get_db, init_db, test_connection, SessionLocal
 from app.services.upbit_collector import UpbitAPICollector
@@ -152,6 +155,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ==================== RAG 함수 ====================
+@app.on_event("startup")
+async def startup_event():
+    """
+    애플리케이션 시작 시 RAG 데이터 로딩을 백그라운드에서 수행합니다.
+    """
+    logger.info("Application startup: Starting RAG data initialization in a background thread.")
+    try:
+        init_thread = threading.Thread(target=initialize_rag_data)
+        init_thread.daemon = True  # 메인 스레드 종료 시 함께 종료되도록 설정
+        init_thread.start()
+    except Exception as e:
+        logger.error(f"Failed to start RAG data initialization thread: {str(e)}")
+
+
+# 메인 API 라우터 생성
+api_router = APIRouter()
+# 기능별 라우터 포함
+api_router.include_router(llm.router, prefix="/llm", tags=["LLM & RAG"])
+api_router.include_router(market.router, prefix="/market", tags=["Market Data"])
+api_router.include_router(trading.router, prefix="/trading", tags=["Trading"])
+
+# FastAPI 앱에 메인 라우터 포함
+app.include_router(api_router, prefix="/api")
 
 # ==================== 데이터 수집 함수 ====================
 
