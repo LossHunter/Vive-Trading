@@ -1,10 +1,13 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
 import os
 from typing import Optional
 from dotenv import load_dotenv
 
 # .env 파일 로드 (프로젝트 루트 디렉토리에서 찾음)
-load_dotenv()
+env_path = Path(__file__).parent.parent.parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+# load_dotenv()
 
 class Settings(BaseSettings):
     # vLLM 서버의 base URL. 환경 변수에서 읽어옵니다.
@@ -74,6 +77,7 @@ class DatabaseConfig:
                 f".env 파일에 다음 중 하나를 설정해주세요:\n"
                 f"  - DB_URL (전체 연결 문자열)\n"
                 f"  또는 다음 개별 설정들: {', '.join(missing)}"
+                f"env_path: {env_path}"
             )
         
         return f"postgresql://{cls.DB_USER}:{cls.DB_PASSWORD}@{cls.DB_HOST}:{cls.DB_PORT}/{cls.DB_NAME}"

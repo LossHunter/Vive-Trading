@@ -4,8 +4,8 @@ services:
     image: postgres:15
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: losshunter
+      POSTGRES_PASSWORD: losshunter_4
       POSTGRES_DB: upbit_db
     ports:
       - "5432:5432"
@@ -29,8 +29,13 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      # DB 설정은 프로젝트 루트의 .env 파일을 통해 자동으로 로드됩니다.
-      # UPBIG API 키 설정 
+    # DB 설정
+      - DB_URL=${DB_URL}
+      - DB_HOST=0.0.0.0
+      - DB_PORT=5432
+    env_file:
+      - ./.env
+    # UPBIG API 키 설정 
       - UPBIT_ACCESS_KEY=${UPBIT_ACCESS_KEY}
       - UPBIT_SECRET_KEY=${UPBIT_SECRET_KEY}
       - ./rag-data:/app/rag-data  # RAG 데이터 볼륨 마운트
@@ -53,7 +58,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "5173:80"
+      - "3000:80"
     networks:
       - app-network
 
