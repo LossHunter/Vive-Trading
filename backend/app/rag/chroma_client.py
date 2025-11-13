@@ -25,10 +25,7 @@ class ChromaDBClient:
             self.client = chromadb.HttpClient(
                 host=self.host,
                 port=self.port,
-                settings=Settings(
-                    chroma_client_auth_provider="chromadb.auth.token_authn.TokenAuthenticationClientProvider",
-                    chroma_client_auth_credentials=settings.CHROMA_AUTH_CREDENTIALS # config.py에서 가져온 설정 사용
-                )
+                headers={"Authorization": f"Bearer {settings.CHROMA_AUTH_CREDENTIALS}"}
             )
             logger.info(f"Connected to Chroma DB at {self.host}:{self.port}")
             
