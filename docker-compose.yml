@@ -1,4 +1,23 @@
 services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: losshunter
+      POSTGRES_PASSWORD: losshunter_4
+      POSTGRES_DB: upbit_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-network
+
   backend:
     build:
       context: ./backend
@@ -6,16 +25,31 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./rag-data:/app/rag-data  # RAG 데이터 볼륨 마운트
+      - ./backend:/app
+      - ./rag-data:/app/rag-data
+    env_file:
+      - ./.env
     environment:
+      # PostgreSQL DB 설정
+      - DB_URL=${DB_URL}
+      - DB_HOST=db
+      - DB_PORT=5432
+      # Upbit API 키 설정
+      - UPBIT_ACCESS_KEY=${UPBIT_ACCESS_KEY}
+      - UPBIT_SECRET_KEY=${UPBIT_SECRET_KEY}
+      # ChromaDB & RAG 설정
       - CHROMA_HOST=chroma-db
       - CHROMA_PORT=8000
       - CHROMA_COLLECTION_NAME=trading_cases
       - CHROMA_AUTH_CREDENTIALS=${CHROMA_AUTH_CREDENTIALS}
+      # vLLM 설정
       - VLLM_BASE_URL=${VLLM_BASE_URL}
       - VLLM_API_KEY=${VLLM_API_KEY}
     depends_on:
-      - chroma-db
+      db:
+        condition: service_healthy
+      chroma-db:
+        condition: service_started
     networks:
       - app-network
 
@@ -27,11 +61,13 @@ services:
       - "3000:80"
     networks:
       - app-network
+    depends_on:
+      - backend
 
   chroma-db:
     image: chromadb/chroma:latest
     ports:
-      - "8001:8000"  # 로컬에서 직접 접근 가능하도록 포트 매핑
+      - "8001:8000"
     volumes:
       - chroma-data:/chroma/chroma
     environment:
@@ -42,7 +78,8 @@ services:
       - app-network
 
 volumes:
-  chroma-data:  # Chroma DB 데이터 저장을 위한 볼륨
+  chroma-data:
+  db-data:
 
 networks:
   app-network:

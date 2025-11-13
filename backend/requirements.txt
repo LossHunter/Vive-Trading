@@ -15,6 +15,14 @@ tqdm
 numpy
 pandas
 scikit-learn
+torch
 
 # 기타
 python-dotenv
+#
+wandb
+
+# DB
+sqlalchemy
+psycopg2-binary
+aiohttp
