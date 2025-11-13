@@ -1,3 +1,10 @@
+# Environment variables
+.env
+**/.env
+
+# RAG Data
+/rag-data/
+
 # Python
 __pycache__/
 *.pyc

@@ -1,13 +1,14 @@
-﻿import { time } from "framer-motion";
-import React, { useEffect, useState } from "react";
-import { data } from "react-router-dom";
+﻿import { useEffect, useState, useMemo } from "react";
 import useWebSocket from "react-use-websocket";
 
-const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-const host = window.location.host; 
-const WS_URL = `${protocol}://${host}/ws/chartdata`;
 
-export function useSocketData() {
+
+export function useSocketData({lastTime}) {
+  const WS_URL = useMemo(() => {
+    if (!lastTime) return null;
+    return `${import.meta.env.VITE_SOCKET_URL}/ws/chartdata?lastTime=${encodeURIComponent(lastTime)}`;
+  }, [lastTime]);
+
   const [datalist, setDatalist] = useState([]);
   const { lastMessage } = useWebSocket(WS_URL, {
     shouldReconnect: () => true,

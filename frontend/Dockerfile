@@ -1,25 +1,25 @@
-# Stage 1: Build the React application
-FROM node:18-alpine as builder
+# Stage 1: Build the Vite React application
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-COPY package.json ./
-COPY package-lock.json ./
-
+# 패키지 파일 복사 및 의존성 설치
+COPY package*.json ./
 RUN npm install
 
-COPY . ./
-
+# 소스 복사 및 빌드
+COPY . .
 RUN npm run build
 
-# Stage 2: Serve the React application with Nginx
-FROM nginx:stable-alpine
+# Stage 2: Serve the Vite app with Nginx
+FROM nginx:alpine
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+# 빌드 결과물을 Nginx html 폴더로 복사
+COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy the Nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# (선택) 커스텀 nginx.conf가 있으면 추가
+# COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 3000
 
 CMD ["nginx", "-g", "daemon off;"]
