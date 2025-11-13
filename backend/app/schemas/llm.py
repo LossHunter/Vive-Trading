@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Literal
+from typing import Literal, Dict, Any, Optional, List
 
 # 사용 가능한 모델 이름들을 Literal 타입으로 정의
 ModelName = Literal[
@@ -22,7 +22,22 @@ class TradeDecision(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0)
     coin: str
 
-# 우리 API가 받을 요청 본문의 구조 (model_name 추가)
-class LLMRequest(BaseModel):
+# RAG 기능이 포함된 API 요청 본문 스키마
+class TradeDecisionRequest(BaseModel):
     user_data_prompt: str
-    model_name: ModelName = "openai/gpt-oss-120b" # 기본값을 gpt-oss-120b로 설정
+    model_name: ModelName = "openai/gpt-oss-120b"
+    market_data: Optional[Dict[str, Any]] = None  # RAG를 위한 구조화된 시장 데이터
+
+# 컨텍스트 요약 스키마
+class ContextSummary(BaseModel):
+    success_cases: int
+    failure_cases: int
+    expert_analysis: int
+    contrarian_views: int
+
+# 최종 API 응답 스키마
+class TradeDecisionResponse(BaseModel):
+    status: str
+    rag_context_used: bool
+    trade_decision: TradeDecision
+    context_summary: Optional[ContextSummary] = None
