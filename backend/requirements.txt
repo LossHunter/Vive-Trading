@@ -1,4 +1,14 @@
 fastapi
 uvicorn
-openai
+python-dotenv
+pydantic
+requests
+transformers
+torch
+openai>=1.30.0
+pandas
+wandb
 pydantic-settings
+sqlalchemy
+psycopg2-binary
+aiohttp
