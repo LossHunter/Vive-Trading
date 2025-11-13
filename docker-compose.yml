@@ -16,6 +16,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - app-network
 
     
   backend:
@@ -27,10 +29,10 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      - DB_URL=${POSTGRE_URL}
-      - HOST=0.0.0.0
-      - PORT=5432
-
+      # DB 설정은 프로젝트 루트의 .env 파일을 통해 자동으로 로드됩니다.
+      # UPBIG API 키 설정 
+      - UPBIT_ACCESS_KEY=${UPBIT_ACCESS_KEY}
+      - UPBIT_SECRET_KEY=${UPBIT_SECRET_KEY}
       - ./rag-data:/app/rag-data  # RAG 데이터 볼륨 마운트
       - CHROMA_HOST=chroma-db
       - CHROMA_PORT=8000
@@ -39,7 +41,10 @@ services:
       - VLLM_BASE_URL=${VLLM_BASE_URL}
       - VLLM_API_KEY=${VLLM_API_KEY}
     depends_on:
-      - chroma-db
+      db: # <--- 2. db 서비스에 대한 의존성 추가
+        condition: service_healthy # db의 healthcheck가 통과할 때까지 대기
+      chroma-db: # <--- 3. chroma-db 의존성 유지
+        condition: service_started # (chroma-db는 healthcheck가 없으므로 started 사용)
     networks:
       - app-network
 
@@ -48,7 +53,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:80"
+      - "5173:80"
     networks:
       - app-network
 
@@ -68,6 +73,7 @@ services:
 
 volumes:
   chroma-data:  # Chroma DB 데이터 저장을 위한 볼륨
+  db-data:      # PostgreSQL 데이터 저장을 위한 볼륨
 
 networks:
   app-network:
