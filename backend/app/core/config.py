@@ -162,3 +162,34 @@ class WalletConfig:
     
     # 지갑 데이터 전송 주기 (초 단위)
     WALLET_BROADCAST_INTERVAL: int = 60  # 지갑 데이터: 60초(1분)마다 WebSocket으로 전송
+
+
+class LLMPromptConfig:
+    """LLM 프롬프트 생성 설정 클래스"""
+    
+    # LLM 프롬프트 데이터 생성 주기 (초 단위)
+    PROMPT_GENERATION_INTERVAL: int = 180  # 3분(180초)마다 프롬프트 데이터 생성
+    
+    # 프롬프트 생성 활성화 여부
+    ENABLE_PROMPT_GENERATION: bool = True
+
+
+class ScriptConfig:
+    """스크립트 및 API 테스트용 설정 클래스"""
+    
+    # API 테스트 및 데이터 수집 기본값
+    DEFAULT_CANDLE_COUNT: int = 200  # 기본 캔들 데이터 개수
+    DEFAULT_TRADES_COUNT: int = 10  # 기본 체결 데이터 개수
+    DEFAULT_RSI_PERIOD: int = 14  # 기본 RSI 기간
+    DEFAULT_RSI_PERIOD_SHORT: int = 7  # 단기 RSI 기간
+    DEFAULT_INDICATORS_CANDLE_COUNT: int = 200  # 지표 계산용 캔들 개수
+    DEFAULT_INTRADAY_SERIES_COUNT: int = 10  # LLM 프롬프트용 일중 시리즈 개수
+    
+    # 테스트용 마켓 리스트
+    TEST_MARKETS: list = [
+        "KRW-BTC",
+        "KRW-ETH",
+        "KRW-DOGE",
+        "KRW-SOL",
+        "KRW-XRP",
+    ]

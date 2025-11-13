@@ -159,6 +159,7 @@ class UpbitRSI(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
     market = Column(Text, nullable=False, comment="마켓 코드 FK")
     candle_date_time_utc = Column(DateTime(timezone=True), nullable=False, comment="RSI 기준 시점 (캔들 UTC)")
+    interval = Column(Text, nullable=False, comment="캔들 간격 (day, minute3)")
     period = Column(Integer, default=14, comment="RSI 계산 기간 (일/분 단위)")
     au = Column(Numeric(18, 8), comment="Average Up (평균 상승폭)")
     ad = Column(Numeric(18, 8), comment="Average Down (평균 하락폭)")
@@ -176,16 +177,52 @@ class UpbitIndicators(Base):
     candle_date_time_utc = Column(DateTime(timezone=True), nullable=False, comment="지표 계산 기준 시각 (UTC)")
     interval = Column(Text, comment="지표 계산 주기 (예: minute3, day 등)")
     ema12 = Column(Numeric(20, 8), comment="EMA(12)")
+    ema20 = Column(Numeric(20, 8), comment="EMA(20)")
     ema26 = Column(Numeric(20, 8), comment="EMA(26)")
+    ema50 = Column(Numeric(20, 8), comment="EMA(50)")
     macd = Column(Numeric(20, 8), comment="MACD 지표 값")
     macd_signal = Column(Numeric(20, 8), comment="MACD 시그널 라인")
     macd_hist = Column(Numeric(20, 8), comment="MACD 히스토그램 값")
     rsi14 = Column(Numeric(10, 4), comment="RSI(14)")
+    atr3 = Column(Numeric(20, 8), comment="ATR(3) 평균진폭")
     atr14 = Column(Numeric(20, 8), comment="ATR(14) 평균진폭")
     bb_upper = Column(Numeric(20, 8), comment="볼린저밴드 상단")
     bb_middle = Column(Numeric(20, 8), comment="볼린저밴드 중단 (이동평균선)")
     bb_lower = Column(Numeric(20, 8), comment="볼린저밴드 하단")
     calculated_at = Column(DateTime(timezone=True), server_default=func.now(), comment="지표 계산 시각")
+
+
+class LLMPromptData(Base):
+    """LLM 프롬프트 생성용 데이터 테이블"""
+    __tablename__ = "llm_prompt_data"
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
+    generated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="프롬프트 생성 시각 (UTC)")
+    trading_minutes = Column(Integer, comment="거래 시작 후 경과 시간 (분)")
+    prompt_text = Column(Text, comment="생성된 프롬프트 텍스트")
+    market_data_json = Column(JSON, comment="시장 데이터 JSON (모든 코인)")
+    account_data_json = Column(JSON, comment="계정 정보 및 성과 JSON")
+    indicator_config_json = Column(JSON, comment="사용된 지표 설정 JSON (기간 등)")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="레코드 생성 시각")
+
+
+class LLMTradingSignal(Base):
+    """LLM 거래 신호 응답 테이블"""
+    __tablename__ = "llm_trading_signal"
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
+    prompt_id = Column(BigInteger, nullable=False, comment="프롬프트 ID (llm_prompt_data FK)")
+    coin = Column(Text, nullable=False, comment="코인 심볼 (예: BTC, ETH)")
+    signal = Column(Text, nullable=False, comment="거래 신호 (예: buy_to_enter, sell_to_exit, hold)")
+    stop_loss = Column(Numeric(20, 8), comment="손절가")
+    profit_target = Column(Numeric(20, 8), comment="익절가")
+    quantity = Column(Numeric(30, 10), comment="거래 수량")
+    leverage = Column(Numeric(10, 2), comment="레버리지 배수")
+    risk_usd = Column(Numeric(20, 8), comment="리스크 금액 (USD)")
+    confidence = Column(Numeric(5, 4), comment="신뢰도 (0.0 ~ 1.0)")
+    invalidation_condition = Column(Text, comment="무효화 조건 설명")
+    justification = Column(Text, comment="거래 근거 설명")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="신호 생성 시각 (UTC)")
 
 
 # ==================== 데이터베이스 유틸리티 함수 ====================
@@ -234,4 +271,3 @@ def test_connection() -> bool:
     except Exception as e:
         logger.error(f"❌ 데이터베이스 연결 실패: {e}")
         return False
-

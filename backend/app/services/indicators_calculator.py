@@ -49,19 +49,37 @@ class RSICalculator:
         losses = []
         
         for item in candle_data:
-            change = item.get('change_price', 0)
+            change = item.get('change_price', 0.0)
             if isinstance(change, (int, float)):
-                gains.append(change if change > 0 else 0)
-                losses.append(abs(change) if change < 0 else 0)
+                if change > 0:
+                    gains.append(change)
+                else:
+                    gains.append(0.0)
+                
+                if change < 0:
+                    losses.append(abs(change))
+                else:
+                    losses.append(0.0)
             else:
                 # Decimal이나 문자열인 경우 처리
                 try:
-                    change_val = float(change) if change else 0
-                    gains.append(change_val if change_val > 0 else 0)
-                    losses.append(abs(change_val) if change_val < 0 else 0)
+                    if change:
+                        change_val = float(change)
+                    else:
+                        change_val = 0.0
+                    
+                    if change_val > 0:
+                        gains.append(change_val)
+                    else:
+                        gains.append(0.0)
+                    
+                    if change_val < 0:
+                        losses.append(abs(change_val))
+                    else:
+                        losses.append(0.0)
                 except (ValueError, TypeError):
-                    gains.append(0)
-                    losses.append(0)
+                    gains.append(0.0)
+                    losses.append(0.0)
         
         # 초기 평균 상승폭(AU)과 평균 하락폭(AD) 계산
         initial_au = sum(gains[:period]) / period
@@ -76,14 +94,42 @@ class RSICalculator:
             ad = (ad * (period - 1) + losses[i]) / period
         
         # RS와 RSI 계산
-        rs = float('inf') if ad == 0 else au / ad
-        rsi = (100 - 100 / (1 + rs))
+        if ad == 0:
+            rs = float('inf')
+            rsi = 100.0  # ad가 0이면 RSI는 100
+        else:
+            rs = au / ad
+            rsi = (100 - 100 / (1 + rs))
+        
+        # Decimal 변환 시 안전하게 처리
+        try:
+            au_decimal = Decimal(str(au)).quantize(Decimal("1e-4"), rounding=ROUND_DOWN)
+        except Exception:
+            au_decimal = Decimal("0.0000")
+        
+        try:
+            ad_decimal = Decimal(str(ad)).quantize(Decimal("1e-4"), rounding=ROUND_DOWN)
+        except Exception:
+            ad_decimal = Decimal("0.0000")
+        
+        try:
+            if rs == float('inf'):
+                rs_decimal = Decimal("9999.9999")
+            else:
+                rs_decimal = Decimal(str(rs)).quantize(Decimal("1e-4"), rounding=ROUND_DOWN)
+        except Exception:
+            rs_decimal = Decimal("0.0000")
+        
+        try:
+            rsi_decimal = Decimal(str(rsi)).quantize(Decimal("1e-4"), rounding=ROUND_DOWN)
+        except Exception:
+            rsi_decimal = Decimal("0.0000")
         
         return {
-            "AU": str(Decimal(au).quantize(Decimal("1e-4"), rounding=ROUND_DOWN)),
-            "AD": str(Decimal(ad).quantize(Decimal("1e-4"), rounding=ROUND_DOWN)),
-            "RS": str(Decimal(rs).quantize(Decimal("1e-4"), rounding=ROUND_DOWN)),
-            "RSI": str(Decimal(rsi).quantize(Decimal("1e-4"), rounding=ROUND_DOWN))
+            "AU": str(au_decimal),
+            "AD": str(ad_decimal),
+            "RS": str(rs_decimal),
+            "RSI": str(rsi_decimal)
         }
     
     @staticmethod
@@ -92,15 +138,33 @@ class RSICalculator:
         데이터베이스에서 가져온 캔들 데이터를 RSI 계산에 맞는 형식으로 변환
         
         Args:
-            candles: 데이터베이스 캔들 객체 리스트
+            candles: 데이터베이스 캔들 객체 리스트 (시간 순서대로 정렬되어 있어야 함)
         
         Returns:
             List[Dict]: RSI 계산에 사용할 수 있는 형식의 데이터
+        
+        Note:
+            RSI 계산은 change_price를 사용합니다.
+            change_price는 "trade_price - prev_closing_price"로 계산된 값입니다.
+            일봉 데이터는 change_price가 항상 제공되므로 그대로 사용합니다.
         """
         candle_data = []
+        
         for candle in candles:
+            # change_price 사용 (Upbit API 문서 기준)
+            # change_price = trade_price - prev_closing_price
+            if candle.change_price is not None:
+                change_price = float(candle.change_price)
+            else:
+                # change_price가 없는 경우 (일봉 데이터는 항상 있음)
+                # prev_closing_price와 trade_price로 계산
+                if candle.trade_price is not None and candle.prev_closing_price is not None:
+                    change_price = float(candle.trade_price) - float(candle.prev_closing_price)
+                else:
+                    change_price = 0.0
+            
             candle_data.append({
-                'change_price': float(candle.change_price) if candle.change_price else 0,
+                'change_price': change_price,
                 'candle_date_time_utc': candle.candle_date_time_utc,
                 'market': candle.market
             })
@@ -304,10 +368,25 @@ class IndicatorsCalculator:
         candle_list = []
         
         for candle in candles:
-            close_price = float(candle.trade_price) if candle.trade_price else 0
-            high_price = float(candle.high_price) if candle.high_price else close_price
-            low_price = float(candle.low_price) if candle.low_price else close_price
-            open_price = float(candle.opening_price) if candle.opening_price else close_price
+            if candle.trade_price is not None:
+                close_price = float(candle.trade_price)
+            else:
+                close_price = 0.0
+            
+            if candle.high_price is not None:
+                high_price = float(candle.high_price)
+            else:
+                high_price = close_price
+            
+            if candle.low_price is not None:
+                low_price = float(candle.low_price)
+            else:
+                low_price = close_price
+            
+            if candle.opening_price is not None:
+                open_price = float(candle.opening_price)
+            else:
+                open_price = close_price
             
             prices.append(close_price)
             candle_list.append({
@@ -327,7 +406,7 @@ class IndicatorsCalculator:
         db: Session,
         market: str,
         use_day_candles: bool = True,
-        count: int = 200
+        count: Optional[int] = None
     ) -> Optional[Dict]:
         """
         모든 기술 지표를 계산하고 데이터베이스에 저장
@@ -342,19 +421,38 @@ class IndicatorsCalculator:
             Dict: 계산된 모든 지표 데이터 또는 None
         """
         try:
-            # 캔들 데이터 조회
+            # count가 None이면 기본값 사용
+            if count is None:
+                from config import ScriptConfig
+                count = ScriptConfig.DEFAULT_INDICATORS_CANDLE_COUNT
+            
+            # 최소 필요한 데이터 개수 계산
+            # EMA(50)은 최소 50개, MACD는 최소 35개(26+9) 필요
+            # 따라서 최소 50개 이상 필요
+            min_required_count = max(50, count)  # EMA(50)을 위해 최소 50개 필요
+            
+            # 캔들 데이터 조회 (최신 데이터부터 가져와서 오래된 순서로 정렬)
             if use_day_candles:
                 candles = db.query(UpbitDayCandles).filter(
                     UpbitDayCandles.market == market
-                ).order_by(UpbitDayCandles.candle_date_time_utc.asc()).limit(count).all()
+                ).order_by(UpbitDayCandles.candle_date_time_utc.desc()).limit(min_required_count).all()
+                # 오래된 것부터 정렬 (지표 계산을 위해 시간 순서 필요)
+                candles = list(reversed(candles))
             else:
                 candles = db.query(UpbitCandlesMinute3).filter(
                     UpbitCandlesMinute3.market == market
-                ).order_by(UpbitCandlesMinute3.candle_date_time_utc.asc()).limit(count).all()
+                ).order_by(UpbitCandlesMinute3.candle_date_time_utc.desc()).limit(min_required_count).all()
+                # 오래된 것부터 정렬 (지표 계산을 위해 시간 순서 필요)
+                candles = list(reversed(candles))
             
-            if len(candles) < 26:  # MACD 계산을 위해 최소 26개 필요
-                logger.warning(f"⚠️ {market} 지표 계산: 데이터 부족 ({len(candles)}개 < 26개 필요)")
+            # 실제로 가져온 데이터가 충분한지 확인
+            if len(candles) < 50:  # EMA(50) 계산을 위해 최소 50개 필요
+                logger.warning(f"⚠️ {market} 지표 계산: 데이터 부족 ({len(candles)}개 < 50개 필요, EMA(50) 및 MACD 계산 불가)")
                 return None
+            
+            # count가 지정된 경우, 최신 count개만 사용 (슬라이딩 윈도우)
+            if count is not None and len(candles) > count:
+                candles = candles[-count:]
             
             # 캔들 데이터 변환
             data = IndicatorsCalculator.prepare_candle_data_for_indicators(candles)
@@ -375,6 +473,22 @@ class IndicatorsCalculator:
                 indicators['ema12'] = None
                 indicators['ema26'] = None
             
+            # EMA(20) 계산
+            try:
+                ema20 = EMACalculator.calculate_ema(prices, 20)
+                indicators['ema20'] = ema20
+            except Exception as e:
+                logger.warning(f"⚠️ {market} EMA(20) 계산 실패: {e}")
+                indicators['ema20'] = None
+            
+            # EMA(50) 계산
+            try:
+                ema50 = EMACalculator.calculate_ema(prices, 50)
+                indicators['ema50'] = ema50
+            except Exception as e:
+                logger.warning(f"⚠️ {market} EMA(50) 계산 실패: {e}")
+                indicators['ema50'] = None
+            
             # MACD 계산
             try:
                 macd_data = MACDCalculator.calculate_macd(prices, 12, 26, 9)
@@ -387,22 +501,40 @@ class IndicatorsCalculator:
                 indicators['macd_signal'] = None
                 indicators['macd_hist'] = None
             
-            # RSI 계산
+            # RSI(14) 계산
             try:
                 candle_data = RSICalculator.prepare_candle_data_for_rsi(candles)
                 rsi_data = RSICalculator.calculate_rsi(candle_data, 14)
                 indicators['rsi14'] = float(rsi_data['RSI'])
             except Exception as e:
-                logger.warning(f"⚠️ {market} RSI 계산 실패: {e}")
+                logger.warning(f"⚠️ {market} RSI(14) 계산 실패: {e}")
                 indicators['rsi14'] = None
             
-            # ATR 계산
+            # RSI(7) 계산
+            rsi7_data = None
+            try:
+                rsi7_data = RSICalculator.calculate_rsi(candle_data, 7)
+                indicators['rsi7'] = float(rsi7_data['RSI'])
+            except Exception as e:
+                logger.warning(f"⚠️ {market} RSI(7) 계산 실패: {e}")
+                indicators['rsi7'] = None
+                rsi7_data = None
+            
+            # ATR(14) 계산
             try:
                 atr14 = ATRCalculator.calculate_atr(candle_list, 14)
                 indicators['atr14'] = atr14
             except Exception as e:
-                logger.warning(f"⚠️ {market} ATR 계산 실패: {e}")
+                logger.warning(f"⚠️ {market} ATR(14) 계산 실패: {e}")
                 indicators['atr14'] = None
+            
+            # ATR(3) 계산
+            try:
+                atr3 = ATRCalculator.calculate_atr(candle_list, 3)
+                indicators['atr3'] = atr3
+            except Exception as e:
+                logger.warning(f"⚠️ {market} ATR(3) 계산 실패: {e}")
+                indicators['atr3'] = None
             
             # Bollinger Bands 계산
             try:
@@ -419,63 +551,179 @@ class IndicatorsCalculator:
             # 가장 최근 캔들의 시각 사용
             latest_candle = candles[-1]
             candle_date_time_utc = latest_candle.candle_date_time_utc
-            interval = "day" if use_day_candles else "minute3"
+            
+            # interval 값 결정
+            interval = 'day' if use_day_candles else 'minute3'
+            
+            # RSI(7) 저장 (upbit_rsi 테이블)
+            if rsi7_data is not None:
+                try:
+                    # 중복 체크 (UNIQUE INDEX: market, candle_date_time_utc, period, interval)
+                    existing_rsi7 = db.query(UpbitRSI).filter(
+                        UpbitRSI.market == market,
+                        UpbitRSI.candle_date_time_utc == candle_date_time_utc,
+                        UpbitRSI.period == 7,
+                        UpbitRSI.interval == interval
+                    ).first()
+                    
+                    if not existing_rsi7:
+                        # Null 값 체크
+                        null_fields = []
+                        if rsi7_data.get("AU") is None:
+                            null_fields.append("AU")
+                        if rsi7_data.get("AD") is None:
+                            null_fields.append("AD")
+                        if rsi7_data.get("RS") is None:
+                            null_fields.append("RS")
+                        if rsi7_data.get("RSI") is None:
+                            null_fields.append("RSI")
+                        
+                        if null_fields:
+                            logger.debug(f"⚠️ {market} RSI(7, interval={interval}) Null 값 발견: {', '.join(null_fields)}")
+                        
+                        rsi7_obj = UpbitRSI(
+                            market=market,
+                            candle_date_time_utc=candle_date_time_utc,
+                            interval=interval,
+                            period=7,
+                            au=Decimal(rsi7_data["AU"]) if rsi7_data.get("AU") is not None else None,
+                            ad=Decimal(rsi7_data["AD"]) if rsi7_data.get("AD") is not None else None,
+                            rs=Decimal(rsi7_data["RS"]) if rsi7_data.get("RS") is not None else None,
+                            rsi=Decimal(rsi7_data["RSI"]) if rsi7_data.get("RSI") is not None else None
+                        )
+                        db.add(rsi7_obj)
+                        db.commit()
+                        logger.debug(f"✅ {market} RSI(7) 저장 완료 (RSI={rsi7_data.get('RSI', 'None')})")
+                    else:
+                        logger.debug(f"⏭️ {market} RSI(7) 이미 존재 (건너뜀)")
+                except Exception as e:
+                    logger.warning(f"⚠️ {market} RSI(7) 저장 실패: {e}")
+                    db.rollback()
             
             # upbit_indicators 테이블에 저장
+            # 중복 체크 (UNIQUE INDEX: market, candle_date_time_utc, interval)
             existing_indicator = db.query(UpbitIndicators).filter(
                 UpbitIndicators.market == market,
                 UpbitIndicators.candle_date_time_utc == candle_date_time_utc,
                 UpbitIndicators.interval == interval
             ).first()
             
-            if existing_indicator:
-                # 기존 지표 업데이트
+            if not existing_indicator:
+                # Null 값 체크 및 디버그 로그
+                null_fields = []
+                
+                ema12_value = None
                 if indicators['ema12'] is not None:
-                    existing_indicator.ema12 = Decimal(str(indicators['ema12']))
+                    ema12_value = Decimal(str(indicators['ema12']))
+                else:
+                    null_fields.append("ema12")
+                
+                ema20_value = None
+                if indicators['ema20'] is not None:
+                    ema20_value = Decimal(str(indicators['ema20']))
+                else:
+                    null_fields.append("ema20")
+                
+                ema26_value = None
                 if indicators['ema26'] is not None:
-                    existing_indicator.ema26 = Decimal(str(indicators['ema26']))
+                    ema26_value = Decimal(str(indicators['ema26']))
+                else:
+                    null_fields.append("ema26")
+                
+                ema50_value = None
+                if indicators['ema50'] is not None:
+                    ema50_value = Decimal(str(indicators['ema50']))
+                else:
+                    null_fields.append("ema50")
+                
+                macd_value = None
                 if indicators['macd'] is not None:
-                    existing_indicator.macd = Decimal(str(indicators['macd']))
+                    macd_value = Decimal(str(indicators['macd']))
+                else:
+                    null_fields.append("macd")
+                
+                macd_signal_value = None
                 if indicators['macd_signal'] is not None:
-                    existing_indicator.macd_signal = Decimal(str(indicators['macd_signal']))
+                    macd_signal_value = Decimal(str(indicators['macd_signal']))
+                else:
+                    null_fields.append("macd_signal")
+                
+                macd_hist_value = None
                 if indicators['macd_hist'] is not None:
-                    existing_indicator.macd_hist = Decimal(str(indicators['macd_hist']))
+                    macd_hist_value = Decimal(str(indicators['macd_hist']))
+                else:
+                    null_fields.append("macd_hist")
+                
+                rsi14_value = None
                 if indicators['rsi14'] is not None:
-                    existing_indicator.rsi14 = Decimal(str(indicators['rsi14']))
+                    rsi14_value = Decimal(str(indicators['rsi14']))
+                else:
+                    null_fields.append("rsi14")
+                
+                atr3_value = None
+                if indicators['atr3'] is not None:
+                    atr3_value = Decimal(str(indicators['atr3']))
+                else:
+                    null_fields.append("atr3")
+                
+                atr14_value = None
                 if indicators['atr14'] is not None:
-                    existing_indicator.atr14 = Decimal(str(indicators['atr14']))
+                    atr14_value = Decimal(str(indicators['atr14']))
+                else:
+                    null_fields.append("atr14")
+                
+                bb_upper_value = None
                 if indicators['bb_upper'] is not None:
-                    existing_indicator.bb_upper = Decimal(str(indicators['bb_upper']))
+                    bb_upper_value = Decimal(str(indicators['bb_upper']))
+                else:
+                    null_fields.append("bb_upper")
+                
+                bb_middle_value = None
                 if indicators['bb_middle'] is not None:
-                    existing_indicator.bb_middle = Decimal(str(indicators['bb_middle']))
+                    bb_middle_value = Decimal(str(indicators['bb_middle']))
+                else:
+                    null_fields.append("bb_middle")
+                
+                bb_lower_value = None
                 if indicators['bb_lower'] is not None:
-                    existing_indicator.bb_lower = Decimal(str(indicators['bb_lower']))
-                db.commit()
-                logger.debug(f"✅ {market} 통합 지표 업데이트 완료")
-            else:
-                # 새 지표 생성
+                    bb_lower_value = Decimal(str(indicators['bb_lower']))
+                else:
+                    null_fields.append("bb_lower")
+                
+                if null_fields:
+                    logger.debug(f"⚠️ {market} 통합 지표 Null 값 발견: {', '.join(null_fields)}")
+                
                 indicator_obj = UpbitIndicators(
                     market=market,
                     candle_date_time_utc=candle_date_time_utc,
                     interval=interval,
-                    ema12=Decimal(str(indicators['ema12'])) if indicators['ema12'] is not None else None,
-                    ema26=Decimal(str(indicators['ema26'])) if indicators['ema26'] is not None else None,
-                    macd=Decimal(str(indicators['macd'])) if indicators['macd'] is not None else None,
-                    macd_signal=Decimal(str(indicators['macd_signal'])) if indicators['macd_signal'] is not None else None,
-                    macd_hist=Decimal(str(indicators['macd_hist'])) if indicators['macd_hist'] is not None else None,
-                    rsi14=Decimal(str(indicators['rsi14'])) if indicators['rsi14'] is not None else None,
-                    atr14=Decimal(str(indicators['atr14'])) if indicators['atr14'] is not None else None,
-                    bb_upper=Decimal(str(indicators['bb_upper'])) if indicators['bb_upper'] is not None else None,
-                    bb_middle=Decimal(str(indicators['bb_middle'])) if indicators['bb_middle'] is not None else None,
-                    bb_lower=Decimal(str(indicators['bb_lower'])) if indicators['bb_lower'] is not None else None
+                    ema12=ema12_value,
+                    ema20=ema20_value,
+                    ema26=ema26_value,
+                    ema50=ema50_value,
+                    macd=macd_value,
+                    macd_signal=macd_signal_value,
+                    macd_hist=macd_hist_value,
+                    rsi14=rsi14_value,
+                    atr3=atr3_value,
+                    atr14=atr14_value,
+                    bb_upper=bb_upper_value,
+                    bb_middle=bb_middle_value,
+                    bb_lower=bb_lower_value
                 )
                 db.add(indicator_obj)
                 db.commit()
                 logger.debug(f"✅ {market} 통합 지표 저장 완료")
+            else:
+                logger.debug(f"⏭️ {market} 통합 지표 이미 존재 (건너뜀)")
+            
+            candle_date_time_utc_str = None
+            if candle_date_time_utc is not None:
+                candle_date_time_utc_str = candle_date_time_utc.isoformat()
             
             return {
                 "market": market,
-                "candle_date_time_utc": candle_date_time_utc.isoformat() if candle_date_time_utc else None,
+                "candle_date_time_utc": candle_date_time_utc_str,
                 **indicators
             }
         
@@ -490,7 +738,7 @@ class IndicatorsCalculator:
         market: str,
         period: int = 14,
         use_day_candles: bool = True,
-        count: int = 200
+        count: Optional[int] = None
     ) -> Optional[Dict]:
         """
         RSI를 계산하고 데이터베이스에 저장
@@ -506,15 +754,24 @@ class IndicatorsCalculator:
             Dict: 계산된 RSI 데이터 또는 None
         """
         try:
-            # 캔들 데이터 조회
+            # count가 None이면 기본값 사용
+            if count is None:
+                from config import ScriptConfig
+                count = ScriptConfig.DEFAULT_INDICATORS_CANDLE_COUNT
+            
+            # 캔들 데이터 조회 (최신 데이터부터 가져와서 오래된 순서로 정렬)
             if use_day_candles:
                 candles = db.query(UpbitDayCandles).filter(
                     UpbitDayCandles.market == market
-                ).order_by(UpbitDayCandles.candle_date_time_utc.asc()).limit(count).all()
+                ).order_by(UpbitDayCandles.candle_date_time_utc.desc()).limit(count).all()
+                # 오래된 것부터 정렬 (지표 계산을 위해 시간 순서 필요)
+                candles = list(reversed(candles))
             else:
                 candles = db.query(UpbitCandlesMinute3).filter(
                     UpbitCandlesMinute3.market == market
-                ).order_by(UpbitCandlesMinute3.candle_date_time_utc.asc()).limit(count).all()
+                ).order_by(UpbitCandlesMinute3.candle_date_time_utc.desc()).limit(count).all()
+                # 오래된 것부터 정렬 (지표 계산을 위해 시간 순서 필요)
+                candles = list(reversed(candles))
             
             if len(candles) < period + 1:
                 logger.warning(f"⚠️ {market} RSI 계산: 데이터 부족 ({len(candles)}개 < {period + 1}개 필요)")
@@ -530,35 +787,48 @@ class IndicatorsCalculator:
             latest_candle = candles[-1]
             candle_date_time_utc = latest_candle.candle_date_time_utc
             
-            # 중복 체크 (market + candle_date_time_utc + period)
-            existing = db.query(UpbitRSI).filter(
+            # interval 값 결정
+            interval = 'day' if use_day_candles else 'minute3'
+            
+            # upbit_rsi 테이블에 저장
+            # 중복 체크 (UNIQUE INDEX: market, candle_date_time_utc, period, interval)
+            existing_rsi = db.query(UpbitRSI).filter(
                 UpbitRSI.market == market,
                 UpbitRSI.candle_date_time_utc == candle_date_time_utc,
-                UpbitRSI.period == period
+                UpbitRSI.period == period,
+                UpbitRSI.interval == interval
             ).first()
             
-            if existing:
-                # 기존 데이터 업데이트
-                existing.au = Decimal(rsi_data["AU"])
-                existing.ad = Decimal(rsi_data["AD"])
-                existing.rs = Decimal(rsi_data["RS"])
-                existing.rsi = Decimal(rsi_data["RSI"])
-                db.commit()
-                logger.debug(f"✅ {market} RSI 업데이트 완료 (period={period})")
-            else:
-                # 새 데이터 저장
+            if not existing_rsi:
+                # Null 값 체크
+                null_fields = []
+                if rsi_data.get("AU") is None:
+                    null_fields.append("AU")
+                if rsi_data.get("AD") is None:
+                    null_fields.append("AD")
+                if rsi_data.get("RS") is None:
+                    null_fields.append("RS")
+                if rsi_data.get("RSI") is None:
+                    null_fields.append("RSI")
+                
+                if null_fields:
+                    logger.debug(f"⚠️ {market} RSI(period={period}, interval={interval}) Null 값 발견: {', '.join(null_fields)}")
+                
                 rsi_obj = UpbitRSI(
                     market=market,
                     candle_date_time_utc=candle_date_time_utc,
+                    interval=interval,
                     period=period,
-                    au=Decimal(rsi_data["AU"]),
-                    ad=Decimal(rsi_data["AD"]),
-                    rs=Decimal(rsi_data["RS"]),
-                    rsi=Decimal(rsi_data["RSI"])
+                    au=Decimal(rsi_data["AU"]) if rsi_data.get("AU") is not None else None,
+                    ad=Decimal(rsi_data["AD"]) if rsi_data.get("AD") is not None else None,
+                    rs=Decimal(rsi_data["RS"]) if rsi_data.get("RS") is not None else None,
+                    rsi=Decimal(rsi_data["RSI"]) if rsi_data.get("RSI") is not None else None
                 )
                 db.add(rsi_obj)
                 db.commit()
-                logger.debug(f"✅ {market} RSI 저장 완료 (period={period}, RSI={rsi_data['RSI']})")
+                logger.debug(f"✅ {market} RSI 저장 완료 (period={period}, interval={interval}, RSI={rsi_data.get('RSI', 'None')})")
+            else:
+                logger.debug(f"⏭️ {market} RSI 이미 존재 (건너뜀, period={period})")
             
             # upbit_indicators 테이블에도 저장 (통합 지표 테이블)
             interval = "day" if use_day_candles else "minute3"
@@ -568,12 +838,7 @@ class IndicatorsCalculator:
                 UpbitIndicators.interval == interval
             ).first()
             
-            if existing_indicator:
-                # 기존 지표 업데이트 (RSI만)
-                existing_indicator.rsi14 = Decimal(rsi_data["RSI"])
-                db.commit()
-            else:
-                # 새 지표 생성 (RSI만)
+            if not existing_indicator:
                 indicator_obj = UpbitIndicators(
                     market=market,
                     candle_date_time_utc=candle_date_time_utc,
@@ -582,6 +847,9 @@ class IndicatorsCalculator:
                 )
                 db.add(indicator_obj)
                 db.commit()
+                logger.debug(f"✅ {market} indicators 테이블에 RSI(14) 저장 완료")
+            else:
+                logger.debug(f"⏭️ {market} indicators 이미 존재 (건너뜀, interval={interval})")
             
             return {
                 "market": market,
@@ -651,4 +919,3 @@ class IndicatorsCalculator:
             if result:
                 results.append(result)
         return results
-

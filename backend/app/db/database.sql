@@ -18,7 +18,7 @@ CREATE TABLE "upbit_ticker" (
   "acc_trade_price_24h" numeric(30,10),
   "acc_trade_volume_24h" numeric(30,10),
   "timestamp" bigint,
-  "collected_at" timestamptz DEFAULT (now()),
+  "collected_at" timestamptz DEFAULT (now())
 );
 
 CREATE TABLE "upbit_candles_minute3" (
@@ -37,7 +37,7 @@ CREATE TABLE "upbit_candles_minute3" (
   "candle_acc_trade_volume" numeric(30,10),
   "unit" int DEFAULT 3,
   "timestamp" bigint,
-  "collected_at" timestamptz DEFAULT (now()),
+  "collected_at" timestamptz DEFAULT (now())
 );
 
 CREATE TABLE "upbit_day_candles" (
@@ -68,7 +68,8 @@ CREATE TABLE "upbit_rsi" (
   "ad" numeric(18,8),
   "rs" numeric(18,8),
   "rsi" numeric(10,4),
-  "calculated_at" timestamptz DEFAULT (now())
+  "calculated_at" timestamptz DEFAULT (now()),
+  "interval" text NOT NULL
 );
 
 CREATE TABLE "upbit_indicators" (
@@ -77,16 +78,46 @@ CREATE TABLE "upbit_indicators" (
   "candle_date_time_utc" timestamptz NOT NULL,
   "interval" text,
   "ema12" numeric(20,8),
+  "ema20" numeric(20,8),
   "ema26" numeric(20,8),
+  "ema50" numeric(20,8),
   "macd" numeric(20,8),
   "macd_signal" numeric(20,8),
   "macd_hist" numeric(20,8),
   "rsi14" numeric(10,4),
+  "atr3" numeric(20,8),
   "atr14" numeric(20,8),
   "bb_upper" numeric(20,8),
   "bb_middle" numeric(20,8),
   "bb_lower" numeric(20,8),
   "calculated_at" timestamptz DEFAULT (now())
+);
+
+CREATE TABLE "llm_prompt_data" (
+  "id" bigserial PRIMARY KEY,
+  "generated_at" timestamptz NOT NULL DEFAULT (now()),
+  "trading_minutes" int,
+  "prompt_text" text,
+  "market_data_json" jsonb,
+  "account_data_json" jsonb,
+  "indicator_config_json" jsonb,
+  "created_at" timestamptz DEFAULT (now())
+);
+
+CREATE TABLE "llm_trading_signal" (
+  "id" bigserial PRIMARY KEY,
+  "prompt_id" bigint NOT NULL,
+  "coin" text NOT NULL,
+  "signal" text NOT NULL,
+  "stop_loss" numeric(20,8),
+  "profit_target" numeric(20,8),
+  "quantity" numeric(30,10),
+  "leverage" numeric(10,2),
+  "risk_usd" numeric(20,8),
+  "confidence" numeric(5,4),
+  "invalidation_condition" text,
+  "justification" text,
+  "created_at" timestamptz DEFAULT (now())
 );
 
 CREATE TABLE "upbit_trades" (
@@ -100,7 +131,7 @@ CREATE TABLE "upbit_trades" (
   "prev_closing_price" numeric(20,8),
   "change" text,
   "sequential_id" bigint UNIQUE,
-  "collected_at" timestamptz DEFAULT (now()),
+  "collected_at" timestamptz DEFAULT (now())
 );
 
 CREATE TABLE "upbit_orderbook" (
@@ -121,7 +152,7 @@ CREATE TABLE "upbit_accounts" (
   "avg_buy_price" numeric(30,10),
   "avg_buy_price_modified" boolean,
   "unit_currency" text,
-  "collected_at" timestamptz DEFAULT (now()),
+  "collected_at" timestamptz DEFAULT (now())
 );
 
 CREATE INDEX "idx_ticker_market_collected" ON "upbit_ticker" ("market", "collected_at");
@@ -130,9 +161,11 @@ CREATE UNIQUE INDEX "ux_candle3_market_time" ON "upbit_candles_minute3" ("market
 
 CREATE UNIQUE INDEX "ux_day_candle_market_time" ON "upbit_day_candles" ("market", "candle_date_time_utc");
 
-CREATE UNIQUE INDEX "ux_rsi_market_time_period" ON "upbit_rsi" ("market", "candle_date_time_utc", "period");
+CREATE UNIQUE INDEX "ux_rsi_market_time_period_interval" ON "upbit_rsi" ("market", "candle_date_time_utc", "period", "interval");
 
 CREATE UNIQUE INDEX "ux_indicators_market_time" ON "upbit_indicators" ("market", "candle_date_time_utc", "interval");
+
+CREATE INDEX "idx_llm_prompt_generated" ON "llm_prompt_data" ("generated_at");
 
 CREATE UNIQUE INDEX "ux_accounts_account_currency" ON "upbit_accounts" ("account_id", "currency");
 
@@ -254,6 +287,8 @@ COMMENT ON COLUMN "upbit_rsi"."market" IS '마켓 코드 FK';
 
 COMMENT ON COLUMN "upbit_rsi"."candle_date_time_utc" IS 'RSI 기준 시점 (캔들 UTC)';
 
+COMMENT ON COLUMN "upbit_rsi"."interval" IS '캔들 간격 (day, minute3)';
+
 COMMENT ON COLUMN "upbit_rsi"."period" IS 'RSI 계산 기간 (일/분 단위)';
 
 COMMENT ON COLUMN "upbit_rsi"."au" IS 'Average Up (평균 상승폭)';
@@ -278,7 +313,11 @@ COMMENT ON COLUMN "upbit_indicators"."interval" IS '지표 계산 주기 (예: m
 
 COMMENT ON COLUMN "upbit_indicators"."ema12" IS 'EMA(12)';
 
+COMMENT ON COLUMN "upbit_indicators"."ema20" IS 'EMA(20)';
+
 COMMENT ON COLUMN "upbit_indicators"."ema26" IS 'EMA(26)';
+
+COMMENT ON COLUMN "upbit_indicators"."ema50" IS 'EMA(50)';
 
 COMMENT ON COLUMN "upbit_indicators"."macd" IS 'MACD 지표 값';
 
@@ -287,6 +326,8 @@ COMMENT ON COLUMN "upbit_indicators"."macd_signal" IS 'MACD 시그널 라인';
 COMMENT ON COLUMN "upbit_indicators"."macd_hist" IS 'MACD 히스토그램 값';
 
 COMMENT ON COLUMN "upbit_indicators"."rsi14" IS 'RSI(14)';
+
+COMMENT ON COLUMN "upbit_indicators"."atr3" IS 'ATR(3) 평균진폭';
 
 COMMENT ON COLUMN "upbit_indicators"."atr14" IS 'ATR(14) 평균진폭';
 
@@ -362,3 +403,48 @@ COMMENT ON COLUMN "upbit_accounts"."collected_at" IS 'API 응답 수집 시각';
 
 COMMENT ON COLUMN "upbit_accounts"."raw_json" IS '원본 JSON 전체 저장';
 
+COMMENT ON TABLE "llm_prompt_data" IS 'LLM 프롬프트 생성용 데이터';
+
+COMMENT ON COLUMN "llm_prompt_data"."id" IS '내부 식별자 (자동 증가)';
+
+COMMENT ON COLUMN "llm_prompt_data"."generated_at" IS '프롬프트 생성 시각 (UTC)';
+
+COMMENT ON COLUMN "llm_prompt_data"."trading_minutes" IS '거래 시작 후 경과 시간 (분)';
+
+COMMENT ON COLUMN "llm_prompt_data"."prompt_text" IS '생성된 프롬프트 텍스트';
+
+COMMENT ON COLUMN "llm_prompt_data"."market_data_json" IS '시장 데이터 JSON (모든 코인)';
+
+COMMENT ON COLUMN "llm_prompt_data"."account_data_json" IS '계정 정보 및 성과 JSON';
+
+COMMENT ON COLUMN "llm_prompt_data"."indicator_config_json" IS '사용된 지표 설정 JSON (기간 등)';
+
+COMMENT ON COLUMN "llm_prompt_data"."created_at" IS '레코드 생성 시각';
+
+COMMENT ON TABLE "llm_trading_signal" IS 'LLM 거래 신호 응답 테이블';
+
+COMMENT ON COLUMN "llm_trading_signal"."id" IS '내부 식별자 (자동 증가)';
+
+COMMENT ON COLUMN "llm_trading_signal"."prompt_id" IS '프롬프트 ID (llm_prompt_data FK)';
+
+COMMENT ON COLUMN "llm_trading_signal"."coin" IS '코인 심볼 (예: BTC, ETH)';
+
+COMMENT ON COLUMN "llm_trading_signal"."signal" IS '거래 신호 (예: buy_to_enter, sell_to_exit, hold)';
+
+COMMENT ON COLUMN "llm_trading_signal"."stop_loss" IS '손절가';
+
+COMMENT ON COLUMN "llm_trading_signal"."profit_target" IS '익절가';
+
+COMMENT ON COLUMN "llm_trading_signal"."quantity" IS '거래 수량';
+
+COMMENT ON COLUMN "llm_trading_signal"."leverage" IS '레버리지 배수';
+
+COMMENT ON COLUMN "llm_trading_signal"."risk_usd" IS '리스크 금액 (USD)';
+
+COMMENT ON COLUMN "llm_trading_signal"."confidence" IS '신뢰도 (0.0 ~ 1.0)';
+
+COMMENT ON COLUMN "llm_trading_signal"."invalidation_condition" IS '무효화 조건 설명';
+
+COMMENT ON COLUMN "llm_trading_signal"."justification" IS '거래 근거 설명';
+
+COMMENT ON COLUMN "llm_trading_signal"."created_at" IS '신호 생성 시각 (UTC)';
