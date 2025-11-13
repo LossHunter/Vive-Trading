@@ -1,8 +1,6 @@
-﻿import { useEffect, useState } from "react";
-
-export async function fetchAllData() {
+﻿export async function fetchAllData() {
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/data_stream`);
+    const res = await fetch(`${import.meta.env.VITE_GET_URL}/api/data_stream`);
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let done = false;
@@ -30,7 +28,9 @@ export async function fetchAllData() {
       }
     }
 
-    return allData; // 모든 데이터가 수집된 후 반환
+    const lastTime = allData[allData.length - 1][0].time;
+
+    return { allData, lastTime}; // 모든 데이터가 수집된 후 반환
   } catch (err) {
     console.error("Fetch error:", err);
     return [];

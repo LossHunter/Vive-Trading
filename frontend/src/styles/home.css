@@ -1,112 +1,23 @@
 ﻿.frame {
-    min-width: 1200px;
+    padding: 10px 0 10px 0;
     display: grid;
-    grid-template-rows: auto 1fr auto; /* main-right */
+    grid-template-rows: auto 1fr auto;
     gap: 10px;
-    box-sizing: border-box;
-}
-
-/* header */
-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 15px;
-    padding-top: 5px;
-    /* border: 2px solid black; /* header 영역 border 시각화 용 */
-}
-
-    header button {
-        font-size: 16px;
-        font-weight: bold;
-    }
-
-/* link */
-.link {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: row;
-    gap: 8px;
-}
-
-    .link button {
-        width: 150px;
-        background: none;
-        border: none;
-        color: inherit;
-        font-size: 17px;
-        font-weight: bold;
-        cursor: pointer;
-        text-decoration: none;
-        font-weight: bold;
-        text-align: center;
-        padding-top: 3px;
-    }
-
-
-.login-btn {
-    border-right: 1px solid black !important;
-    border-left: 1px solid black !important;
-}
-
-/* alert */
-.alert {
-    display: flex;
-    flex-direction: row;
-    gap: 30px;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    width: 100%;
-}
-
-    .alert a {
-        background: none;
-        border: none;
-        color: black;
-        font-size: 17px;
-        font-weight: bold;
-        cursor: pointer;
-        text-decoration: none;
-        font-weight: bold;
-        font-size: 15px;
-    }
-
-    .alert label {
-        font-size: 13px;
-    }
-
-.TICKER {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-}
-
-    .TICKER a {
-        color: inherit;
-    }
-
-.alert img {
-    width: 13px;
-    height: 13px;
-    margin-right: 5px;
+    max-height: 100vh;
 }
 
 /* main */
 main {
+    height: 100%;
     display: grid;
     grid-template-columns: 300px auto 300px;
-    gap: 10px;
-    padding: 10px 0px 10px 0px;
-    box-sizing: border-box;
-    height: calc(100vh - 200px);
-    box-sizing: border-box;
-    /* border: 2px solid black; /* main 영역 border 시각화 용 */
+    gap: 5px;
+    padding: 15px;
+    overflow-y: auto;
 }
+    .main::-webkit-scrollbar {
+        display: none;
+    }
 
 /* left */
 .main-left {
@@ -119,7 +30,6 @@ main {
     backdrop-filter: blur(4px);
     border: 1px solid rgba(0, 0, 0, 0.05);
     padding: 15px;
-    box-sizing: border-box;
     overflow-y: auto;
 }
 

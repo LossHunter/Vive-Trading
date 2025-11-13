@@ -1,11 +1,8 @@
 ﻿import { useGoogleLogin } from '@react-oauth/google';
 import '../styles/Login.css';
-import Google_Login from '../assets/Google_Login.png'
-import { useNavigate } from 'react-router-dom';
+import Google_Login from '../assets/Google-Sign.svg'
 
 export default function LoginModel({ onClose }) {
-    const navigate = useNavigate();
-
     const googleLogin = useGoogleLogin({
         flow: 'auth-code',
 

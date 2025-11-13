@@ -9,17 +9,13 @@ class Wand_DB():
         load_dotenv()
         self.WANDB_API_KEY = os.environ.get("WANDB_API_KEY") 
 
-        # 🚨 초기화 오류 처리 수정: False를 반환하지 않고, 인스턴스 초기화 중지 또는 플래그 설정
         if not self.WANDB_API_KEY:
-            print("❌ 오류: WANDB_API_KEY 환경 변수가 설정되지 않았습니다. API 호출이 불가능합니다.")
             self.is_ready = False
         else:
             self.is_ready = True
         
-        # WANDB_PROJECT_URL 환경 변수를 Entity/Project 형식으로 가정
         self.WANDB_PROJECT_URL = os.environ.get("WANDB_PROJECT_URL")
         if not self.WANDB_PROJECT_URL:
-            print("❌ 오류: WANDB_PROJECT_URL 환경 변수가 설정되지 않았습니다.")
             self.is_ready = False
             
         self.run_names_to_check = ["distant-silence-3", "trim-paper-2", "splendid-pine-1"]
@@ -37,7 +33,7 @@ class Wand_DB():
             try:
                 history_df = target_run.history(keys=[metric_to_fetch, "_step"])
                 if not history_df.empty:
-                    # 🚀 metric 값만 리스트로 추출
+                    
                     metric_values = history_df[metric_to_fetch].tolist()
                     chart_results.append({
                         "metric_name": metric_to_fetch,
@@ -66,13 +62,11 @@ class Wand_DB():
                 )
                 
                 if not runs:
-                    print(f"❌ '{run_name}' Run을 찾을 수 없습니다.")
                     continue
 
                 target_run = runs[0]
                 chart_data_list = self.get_chart_data(target_run) 
 
-                # 💡 Flatten: run_name 포함해서 metric별로 각각 append
                 for chart in chart_data_list:
                     all_runs_data.append({
                         "run_name": run_name,

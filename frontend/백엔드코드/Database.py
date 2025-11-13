@@ -44,4 +44,4 @@ while True:
     with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(datalist, f, ensure_ascii=False, indent=2)
 
-    time.sleep(30)
+    time.sleep(20)

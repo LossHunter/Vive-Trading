@@ -65,6 +65,11 @@ export default function Header() {
                         className="login-btn"
                         onClick={Login}>
                         {loginText}</button>
+                    <button 
+                    className="home-btn"
+                    onClick={() => navigate('/')}>
+                        Home
+                    </button>
                     <button onClick={goDash}>Dash+</button>
                 </div>
                 <div className="alert">

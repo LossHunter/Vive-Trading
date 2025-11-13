@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import '../styles/home.css';
 import RealTimeCandleChart from '../components/Chart.jsx'
 import Analyze from '../components/AnalyzePanel.jsx';
@@ -10,6 +10,7 @@ import { useSocketData } from '../components/Socket.jsx';
 
 import Loading from "../components/Loading.jsx"
 import Header from "../components/Header.jsx";
+import Footer from "../components/Footer.jsx";
 
 function data_split(data) {
     const sender_chart = {
@@ -105,13 +106,15 @@ export default function Home() {
     const [sender_wallet, setsender_wallet] = useState([]);
 
     const [loading, setLoading] = useState(true);
+    const [lastTime, setlastTime] = useState("");
 
     // 초기데이터 불러오기
     useEffect(() => {
         (async () => {
             try {
-                const allData = await fetchAllData();
+                const { allData, lastTime } = await fetchAllData();
                 setInitData(allData);
+                setlastTime(lastTime)
             } catch (err) {
                 console.error(err);
             } finally {
@@ -129,8 +132,8 @@ export default function Home() {
             }
     }, [InitData]);
     
-    // 추가 데이터 불러오기
-    const socket_data = useSocketData();
+
+    const socket_data = useSocketData({lastTime});
 
     // 초기 데이터에 추가 데이터 합치기
     useEffect(() => {
@@ -182,13 +185,7 @@ export default function Home() {
                 <Analyze sender_analyze={sender_analyze} />
             </div>
             </main>
-            <footer>
-            <div className="footer-content">
-                <p>**생성형 AI 1회차 프로젝트** | AI 기반 투자 분석 및 실시간 트래커 시스템</p>
-                <p>데이터 소스: Upbit WebSocket API | 차트 라이브러리: ApexCharts</p>
-                <p>© 2025 Team [T-Bone]. All Rights Reserved.</p>
-            </div>
-            </footer>
+            <Footer />
         </div>
         )}
     </>

@@ -5,7 +5,6 @@ import "../styles/Chart.css";
 export default function RealTimeCandleChart({ bot, data }) {
     const [isPercent, setIsPercent] = useState(false);
     const [days, setDays] = useState(() => {
-        // 초기: 11월~12월
         const arr = [];
         const start = new Date(2025, 10, 1);
         const end = new Date(2025, 11, 31);
@@ -14,7 +13,6 @@ export default function RealTimeCandleChart({ bot, data }) {
         }
         return arr;
     });
-
 
     useEffect(() => {
         if (!data.length) return;
@@ -36,13 +34,13 @@ export default function RealTimeCandleChart({ bot, data }) {
         }
     }, [data]);
 
-    // 퍼센트 변화 계산 함수
+    // 퍼센트 변화 계산 (null 안전 처리)
     const getPercentChanges = (arr) => {
-        const startValue = arr.find(v => v !== null) ?? 1000;
-        return arr.map(v => (v === null ? null : ((v - startValue) / startValue) * 100));
+        const validArr = arr.filter(v => v != null);
+        const startValue = validArr[0] ?? 1000;
+        return arr.map(v => (v == null ? null : ((v - startValue) / startValue) * 100));
     };
 
-    // 데이터 매핑
     const datamapping = data.map(item => ({
         userId: item.userId,
         username: item.username,
@@ -52,7 +50,6 @@ export default function RealTimeCandleChart({ bot, data }) {
         time: item.time.map(t => new Date(t).getTime())
     }));
 
-    // 필터링 + X축 고정 처리
     const filteredSeries = datamapping
         .filter(user => bot === "all" || user.userId === bot)
         .map(user => {
@@ -73,16 +70,30 @@ export default function RealTimeCandleChart({ bot, data }) {
             };
         });
 
-    // 초기 Y축 범위
-    const initialMoneyMin = 5000;
-    const initialMoneyMax = 15000;
+    const y_unit = 2_000_000;
+    const initialMoneyMin = 8_000_000;
+    const initialMoneyMax = 12_000_000;
     const initialPercentMin = -50;
     const initialPercentMax = 50;
 
-    // 실제 데이터 범위 계산
-    const yValuesAll = filteredSeries.flatMap(s => s.data.map(d => d.y).filter(v => v !== null));
-    const yMin = Math.min(...yValuesAll, isPercent ? initialPercentMin : initialMoneyMin);
-    const yMax = Math.max(...yValuesAll, isPercent ? initialPercentMax : initialMoneyMax);
+    const yValuesAll = filteredSeries.flatMap(s =>
+        s.data.map(d => d.y).filter(v => v != null)
+    );
+
+    const rawYMin = isPercent
+        ? Math.min(...yValuesAll, initialPercentMin)
+        : Math.min(...yValuesAll, initialMoneyMin);
+
+    const rawYMax = isPercent
+        ? Math.max(...yValuesAll, initialPercentMax)
+        : Math.max(...yValuesAll, initialMoneyMax);
+
+    const yMin = isPercent ? rawYMin * 0.9 : rawYMin * 0.9;
+    const yMax = isPercent ? rawYMax * 1.1 : rawYMax * 1.1;
+
+    const yMinTick = isPercent ? Math.floor(yMin / 10) * 10 : Math.floor(yMin / y_unit) * y_unit;
+    const yMaxTick = isPercent ? Math.ceil(yMax / 10) * 10 : Math.ceil(yMax / y_unit) * y_unit;
+    const yTickAmount = isPercent ? Math.ceil((yMaxTick - yMinTick) / 10) : Math.ceil((yMaxTick - yMinTick) / y_unit);
 
     const options = {
         chart: {
@@ -102,13 +113,17 @@ export default function RealTimeCandleChart({ bot, data }) {
             }
         },
         yaxis: {
-            min: yMin,
-            max: yMax,
+            min: yMinTick,
+            max: yMaxTick,
+            tickAmount: yTickAmount,
+            forceNiceScale: true,
             labels: {
-                formatter: (value) =>
-                    isPercent
+                formatter: (value) => {
+                    if (value == null || isNaN(value)) return "";
+                    return isPercent
                         ? `${value.toFixed(1)}%`
-                        : `${Math.round(value).toLocaleString()} ₩`
+                        : `${Math.round(value).toLocaleString()} ₩`;
+                }
             }
         },
         grid: {
@@ -119,7 +134,7 @@ export default function RealTimeCandleChart({ bot, data }) {
             yaxis: { lines: { show: true } }
         },
         legend: { position: "top" },
-        stroke: { width: 3, curve: "smooth" }
+        stroke: { width: 3, curve: "straight" }
     };
 
     return (
