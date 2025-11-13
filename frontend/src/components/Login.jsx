@@ -1,5 +1,5 @@
 ﻿import { useGoogleLogin } from '@react-oauth/google';
-import '../styles/Login.css';
+import '../styles/Main_Login.css';
 import Google_Login from '../assets/Google-Sign.svg'
 
 export default function LoginModel({ onClose }) {
