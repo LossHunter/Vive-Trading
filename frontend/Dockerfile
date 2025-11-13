@@ -20,6 +20,6 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # (선택) 커스텀 nginx.conf가 있으면 추가
 # COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 8000
+EXPOSE 3000
 
 CMD ["nginx", "-g", "daemon off;"]

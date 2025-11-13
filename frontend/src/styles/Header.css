@@ -40,6 +40,10 @@ header {
 
 
 .login-btn {
+    border-left: 1px solid black !important;
+}
+
+.home-btn {
     border-right: 1px solid black !important;
     border-left: 1px solid black !important;
 }
