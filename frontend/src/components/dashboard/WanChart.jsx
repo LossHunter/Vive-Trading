@@ -1,5 +1,4 @@
-﻿import React from "react";
-import Chart from "react-apexcharts";
+﻿import Chart from "react-apexcharts";
 
 // 문자열에서 숫자만 추출하고 없으면 0 반환
 function extractNumber(value) {
@@ -31,7 +30,10 @@ export default function WandChart({ data }) {
   const options = {
     chart: {
       id: "wand-chart",
-      toolbar: { show: true },
+      toolbar: { show: false },
+      zoom: { enabled: false },  // 확대/축소 비활성
+      pan: { enabled: false },   // 패닝 비활성
+      animations: { enabled: false } // 필요시 애니메이션도 제거
     },
     xaxis: {
       min: 1,
@@ -69,5 +71,5 @@ export default function WandChart({ data }) {
     },
   ];
 
-  return <Chart options={options} series={series} type="line" />;
+  return <Chart options={options} series={series} type="line" height="100%" width="100%" />;
 }

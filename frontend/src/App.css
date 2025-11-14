@@ -1,10 +1,13 @@
-﻿html, body {
+﻿/* ===============================
+   기본 세팅
+================================= */
+html, body {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
-  --bg-color: #ffffff;   
-  --text-color: #222222; 
+  --bg-color: #f4f8fc;   /* 기존보다 살짝 블루 섞인 밝은 톤 */
+  --text-color: #1e2a38; /* 기존보다 차분한 블루그레이 느낌 */
 }
 
 *, *::before, *::after {
@@ -12,21 +15,27 @@
 }
 
 body {
-  background-color: var(--bg-color);
+  background: linear-gradient(135deg, #f4f8fc, #e6f0f9);
   color: var(--text-color);
   background-image: url("https://www.transparenttextures.com/patterns/paper-fibers.png");
   background-repeat: repeat;
   background-size: auto;
   box-sizing: border-box;
-  transition: background-color 0.3s, color 0.3s;
+  transition: background-color 0.3s, color 0.3s, background 0.3s;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* 다크모드 */
+/* ===============================
+   다크모드
+================================= */
 body.dark-mode {
-  --bg-color: #222222;   /* 다크모드 배경 */
-  --text-color: #d6d6d2; /* 다크모드 글자 */
+  --bg-color: #1e1e2f;   /* 다크모드 배경 */
+  --text-color: #e0e0f0; /* 다크모드 글자 */
 }
 
+/* ===============================
+   다크 모드 토글 버튼
+================================= */
 .dark-toggle-btn {
     position: fixed;
     bottom: 20px;
@@ -35,20 +44,32 @@ body.dark-mode {
     height: 50px;
     border-radius: 50%;
     border: none;
-    background: rgba(255, 255, 255, 0.1); /* 반투명 유리 느낌 */
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.08); /* 은은한 유리 느낌 */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     display: flex;
     justify-content: center;
     align-items: center;
     cursor: pointer;
     z-index: 999;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1), inset 0 -2px 4px rgba(255,255,255,0.05);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15), inset 0 -2px 4px rgba(255,255,255,0.05);
     transition: transform 0.2s, background 0.3s;
     color: inherit; /* 다크/화이트 모드 색상 상속 */
+    font-size: 1.2rem;
 }
 
 .dark-toggle-btn:hover {
-    transform: scale(1.1); /* 살짝 확대 */
-    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.1);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* ===============================
+   옵션: 그라데이션 배경
+================================= */
+body {
+    background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
+}
+
+body.dark-mode {
+    background: linear-gradient(135deg, #1e1e2f, #2a2a3e);
 }

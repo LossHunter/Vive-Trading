@@ -28,9 +28,9 @@
       }
     }
 
-    const lastTime = allData[allData.length - 1][0].time;
+    const cachlastTime = allData[allData.length - 1][0].time;
 
-    return { allData, lastTime}; // 모든 데이터가 수집된 후 반환
+    return { allData, cachlastTime }; // 모든 데이터가 수집된 후 반환
   } catch (err) {
     console.error("Fetch error:", err);
     return [];

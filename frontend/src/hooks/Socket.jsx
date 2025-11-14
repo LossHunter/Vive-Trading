@@ -1,21 +1,22 @@
-﻿import { useEffect, useState, useMemo } from "react";
+﻿import { useMemo, useEffect, useState } from "react";
 import useWebSocket from "react-use-websocket";
 
-
-
-export function useSocketData({lastTime}) {
+export function useSocketData({ lastTime, enabled }) {
   const WS_URL = useMemo(() => {
-    if (!lastTime) return null;
+    if (!enabled || !lastTime) return null; // 초기 로딩 전엔 null
     return `${import.meta.env.VITE_SOCKET_URL}/ws/chartdata?lastTime=${encodeURIComponent(lastTime)}`;
-  }, [lastTime]);
+  }, [lastTime, enabled]);
 
-  const [datalist, setDatalist] = useState([]);
   const { lastMessage } = useWebSocket(WS_URL, {
     shouldReconnect: () => true,
   });
 
+  const [socket_data, setSocket_data] = useState([]);
+  const [socketlasttime, setSocketlasttime] = useState("");
+
   useEffect(() => {
-  if (lastMessage?.data) {
+    if (!lastMessage?.data) return;
+
     try {
       const parsed = JSON.parse(lastMessage.data);
       const flatParsed = Array.isArray(parsed[0]) ? parsed.flat() : parsed;
@@ -36,13 +37,13 @@ export function useSocketData({lastTime}) {
         xrp: item.xrp,
         total: item.total
       }));
-      
-      setDatalist(mapped);
+
+      setSocketlasttime(mapped.length > 0 ? mapped[mapped.length - 1].time : null);
+      setSocket_data(mapped);
     } catch (err) {
       console.error("⚠️ WebSocket Parse Error:", err);
     }
-  }
-}, [lastMessage]);
+  }, [lastMessage]);
 
-  return datalist;
+  return { socket_data, socketlasttime };
 }

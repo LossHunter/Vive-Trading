@@ -1,6 +1,6 @@
 ﻿import "../styles/Header.css"
 
-import { useUpbitTicker } from '../components/UpbitSocket';
+import { useUpbitTicker } from '../hooks/UpbitSocket.jsx';
 import { useNavigate, useLocation  } from "react-router-dom";
 
 import BitcoinLogo from '../assets/Bitcoin_logo.png';
