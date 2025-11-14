@@ -1,5 +1,6 @@
 import logging
 from fastapi import APIRouter, HTTPException
+from typing import Dict, Any
 from app.schemas.llm import TradeDecisionRequest, TradeDecisionResponse, ContextSummary
 from app.services import vllm_service
 from app.rag.query_engine import RAGQueryEngine
@@ -41,28 +42,39 @@ async def get_trade_decision(request: TradeDecisionRequest):
                 logger.warning(f"RAG context retrieval failed: {str(e)}")
                 rag_context = "RAG context retrieval failed, proceeding without context."
 
-        # 2. LLM에 전달할 최종 프롬프트 생성
-        # RAG 컨텍스트가 있을 경우, 이를 user_data_prompt 앞에 추가하여 LLM이 먼저 참고하도록 함
-        final_prompt = f"""
-        ### 참고 자료 (과거 사례 및 분석)
-        {rag_context if rag_context else '사용 가능한 참고 자료 없음.'}
+        # # 2. LLM에 전달할 최종 프롬프트 생성
+        # # RAG 컨텍스트가 있을 경우, 이를 user_data_prompt 앞에 추가하여 LLM이 먼저 참고하도록 함
+        # final_prompt = f"""
+        # ### 참고 자료 (과거 사례 및 분석)
+        # {rag_context if rag_context else '사용 가능한 참고 자료 없음.'}
         
-        ---
+        # ---
         
-        ### 현재 시장 데이터 및 분석 요청
-        {request.user_data_prompt}
+        # ### 현재 시장 데이터 및 분석 요청
+        # {request.user_data_prompt}
         
-        ---
+        # ---
         
-        ### 지시사항
-        위 '참고 자료'와 '현재 시장 데이터'를 모두 종합적으로 고려하여, 전문가 트레이딩 분석가로서 단 하나의 실행 가능한 트레이딩 결정을 내려주세요.
-        반드시 아래 JSON 형식에 맞춰 응답해야 합니다.
-        """
-        
+        # ### 지시사항
+        # 위 '참고 자료'와 '현재 시장 데이터'를 모두 종합적으로 고려하여, 전문가 트레이딩 분석가로서 단 하나의 실행 가능한 트레이딩 결정을 내려주세요.
+        # 반드시 아래 JSON 형식에 맞춰 응답해야 합니다.
+        # """
+
+        # LLM 서비스 호출용 추가 컨텍스트 구성
+        extra_context: Dict[str, Any] = {}
+        if rag_context:
+            extra_context["rag_context"] = rag_context
+        if request.user_data_prompt:
+            extra_context["user_prompt"] = request.user_data_prompt
+        if request.market_data:
+            extra_context["request_market_data"] = request.market_data
+
+
         # 3. LLM 서비스 호출
         llm_response = await vllm_service.get_trade_decision(
-            user_data_prompt=final_prompt,
-            model_name=request.model_name
+            # user_data_prompt=final_prompt,
+            model_name=request.model_name,
+            extra_context=extra_context or None
         )
         
         # 4. 최종 응답 구성

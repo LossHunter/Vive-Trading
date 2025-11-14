@@ -23,9 +23,10 @@ from app.db.database import get_db, init_db, test_connection, SessionLocal
 from app.services.upbit_collector import UpbitAPICollector
 from app.services.upbit_storage import UpbitDataStorage
 from app.services.indicators_calculator import IndicatorsCalculator
+from app.services.vllm_service import run_trade_decision_loop
 
 # 로깅 설정
-logging.basicConfig(
+logging.basicConfig( # 로그출력 형식
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
@@ -88,13 +89,81 @@ async def lifespan(app: FastAPI):
     # 시작 시 실행
     logger.info("🚀 백엔드 서버 시작 중...")
     
-    # 데이터베이스 연결 테스트
-    if not test_connection():
-        logger.error("❌ 데이터베이스 연결 실패. 서버를 종료합니다.")
-        raise Exception("데이터베이스 연결 실패")
-    
-    # 데이터베이스 테이블 초기화
-    init_db()
+
+    try:
+        # DB 연결 테스트
+        if not test_connection():
+            logger.error("❌ 데이터베이스 연결 실패. 서버를 종료합니다.")
+            raise RuntimeError("데이터베이스 연결 실패")
+
+        # DB 초기화
+        init_db()
+
+    except Exception:
+        # exception()을 사용해 스택 트레이스 남김 -> 어떤줄에서 오류났는지)
+        logger.exception("❌ 서버 시작 중 치명적 오류 발생. 서버 기동을 중단합니다.")
+        # FastAPI가 기동되지 않도록 예외 재발생
+        raise
+
+
+    # 3) 백그라운드 태스크 실행
+    try:
+        def start_task(coro, name: str):
+            task = asyncio.create_task(coro, name=name)
+            collection_tasks.append(task)
+            logger.info(f"▶️ 백그라운드 태스크 시작: {name}")
+            return task
+
+        if DataCollectionConfig.ENABLE_TICKER:
+            start_task(collect_ticker_data_periodically(), "collect_ticker_data")
+
+        if DataCollectionConfig.ENABLE_CANDLES:
+            start_task(collect_candle_data_periodically(), "collect_candle_data")
+
+        if DataCollectionConfig.ENABLE_TRADES:
+            start_task(collect_trades_data_periodically(), "collect_trades_data")
+
+        if DataCollectionConfig.ENABLE_ORDERBOOK:
+            start_task(collect_orderbook_data_periodically(), "collect_orderbook_data")
+
+        start_task(broadcast_wallet_data_periodically(), "broadcast_wallet_data")
+        start_task(calculate_indicators_periodically(), "calculate_indicators")
+
+        logger.info("✅ 백엔드 서버 시작 완료")
+
+    except Exception:
+        logger.exception("❌ 백그라운드 태스크 시작 중 오류 발생. 서버 기동을 중단합니다.")
+        # 혹시 이미 시작된 태스크가 있으면 정리
+        for task in collection_tasks:
+            task.cancel()
+        await asyncio.gather(*collection_tasks, return_exceptions=True)
+        raise
+
+    # 앱이 정상 기동된 상태
+    try:
+        yield
+    finally:
+        # 여기서 finally로 묶으면, 앱이 어떤 이유로든 내려갈 때 항상 호출됨
+        logger.info("🛑 백엔드 서버 종료 중...")
+
+        for task in collection_tasks:
+            if not task.done():
+                task.cancel()
+
+        results = await asyncio.gather(*collection_tasks, return_exceptions=True)
+        # 각 태스크 종료 결과 로깅
+        for idx, result in enumerate(results):
+            task = collection_tasks[idx]
+            name = getattr(task, "get_name", lambda: f"task-{idx}")()
+            if isinstance(result, asyncio.CancelledError):
+                logger.info(f"✅ 태스크 정상 취소: {name}")
+            elif isinstance(result, Exception):
+                logger.error(f"⚠️ 태스크 종료 중 예외 발생 ({name}): {result}")
+            else:
+                logger.info(f"ℹ️ 태스크 정상 종료: {name}")
+
+        logger.info("✅ 백엔드 서버 종료 완료")
+        
     
     # 데이터 수집 태스크 시작
     if DataCollectionConfig.ENABLE_TICKER:
@@ -121,6 +190,10 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(calculate_indicators_periodically())
     collection_tasks.append(task)
     
+    # LLM 거래 의사결정 루프 시작 (임시: 60초 간격)
+    task = asyncio.create_task(run_trade_decision_loop())
+    collection_tasks.append(task)
+
     logger.info("✅ 백엔드 서버 시작 완료")
     
     yield
@@ -425,8 +498,8 @@ async def calculate_indicators_periodically():
 
 async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -> List[Dict]:
     """
-    지갑 데이터 생성
-    upbit_accounts 테이블에서 데이터를 조회하여 지갑 정보를 생성합니다.
+    각 사용자(모델)별로 지갑 데이터 생성
+    upbit_accounts 테이블에서 데이터를 조회하여 지갑정보 생성
     
     Args:
         db: 데이터베이스 세션
@@ -447,7 +520,7 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
         {"userId": 4, "username": "DeepSeek", "colors": "#ef4444", "logo": "DeepSeek_LOGO.png", "why": "Your potential is limitless."},
     ]
     
-    # 조회할 날짜 설정
+    # 조회할 날짜 설정(None이면 현재날짜 사용)
     if target_date is None:
         target_date = datetime.utcnow()
     
@@ -455,10 +528,11 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
     date_str = target_date.strftime("%Y/%m/%d")
     
     # 해당 날짜의 시작과 끝 시간 계산
-    start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_of_day = start_of_day + timedelta(days=1)
+    start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0) # 해당 날짜의 자정 00:00:00
+    end_of_day = start_of_day + timedelta(days=1) # 다음 날 자정 00:00:00
     
-    # 해당 날짜의 티커 가격 조회 (각 마켓별 해당 날짜의 최신 가격)
+    # 해당 날짜의 티커 가격 조회 (각 코인별 시세조회)
+    """UpbitTicker테이블에서 마켓코드(market), 데이터수집시간(collected_at), 해당시점의 거래가격(trade_price) 조회"""
     ticker_prices = {}
     for market in UpbitAPIConfig.MAIN_MARKETS:
         ticker = db.query(UpbitTicker).filter(
@@ -482,7 +556,7 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
     wallet_data = []
     
     for user in users:
-        # upbit_accounts에서 해당 날짜의 계정 정보 조회
+        # upbit_accounts(계정 잔액정보)에서 해당 날짜의 계정 정보 조회
         # account_id는 UUID 타입이므로 필터링하지 않고, 모든 계정을 조회한 후 사용자별로 매핑
         # 현재는 account_id가 없거나 NULL인 경우를 처리하기 위해 전체 조회
         accounts = db.query(UpbitAccounts).filter(
@@ -525,7 +599,7 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
             elif currency == "KRW":
                 non = balance
         
-        # 전체 잔액 계산 (코인 가치 + 현금)
+        # 전체 잔액 계산(코인 가치 + 현금): 각 코인 보유량 * 해당 코인의 현재 시세 모두 더함 + 원화잔액 추가
         total = (
             (btc * ticker_prices.get("BTC", 0)) +
             (eth * ticker_prices.get("ETH", 0)) +

@@ -163,6 +163,15 @@ class IndicatorsConfig:
     # RSI 계산 기간 (기본값)
     RSI_PERIOD: int = 14
 
+    # LLM 프롬프트용 세부 설정
+    LLM_EMA_PERIOD: int = 20
+    LLM_EMA_LONG_PERIOD: int = 50
+    LLM_MACD_FAST_PERIOD: int = 12
+    LLM_MACD_SLOW_PERIOD: int = 26
+    LLM_RSI_SHORT_PERIOD: int = 7
+    LLM_RSI_LONG_PERIOD: int = 14
+    LLM_ATR_SHORT_PERIOD: int = 3
+    LLM_ATR_LONG_PERIOD: int = 14
 
 class WalletConfig:
     """지갑 데이터 설정 클래스"""
