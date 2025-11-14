@@ -1,21 +1,20 @@
-# Python 3.11-slim 이미지를 기반으로 합니다.
-FROM python:3.11-slim
+FROM python:3.9-slim
 
-# 작업 디렉토리를 /app으로 설정합니다.
 WORKDIR /app
 
-# requirements.txt 파일을 컨테이너의 /app 디렉토리로 복사합니다.
-COPY requirements.txt .
+# 시스템 의존성 설치
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# 복사된 requirements.txt 파일을 사용하여 의존성을 설치합니다.
+# Python 의존성 설치 (requirements.txt에 모든 의존성을 포함)
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# main.py 파일을 컨테이너의 /app 디렉토리로 복사합니다.
-COPY main.py .
+# 애플리케이션 코드 복사
+COPY . .
 
-# 컨테이너의 8000번 포트를 외부에 노출합니다.
-EXPOSE 8000
-
-# uvicorn을 사용하여 FastAPI 애플리케이션을 실행합니다.
-# 0.0.0.0 호스트를 사용하여 컨테이너 외부에서도 접근할 수 있도록 합니다.
+# 서버 실행
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
