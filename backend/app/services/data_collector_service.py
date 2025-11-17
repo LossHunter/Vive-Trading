@@ -10,7 +10,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from config import DataCollectionConfig, UpbitAPIConfig, ScriptConfig
+from app.core.config import DataCollectionConfig, UpbitAPIConfig, ScriptConfig
 from app.db.database import SessionLocal, UpbitDayCandles, UpbitCandlesMinute3
 from app.services.upbit_collector import UpbitAPICollector
 from app.services.upbit_storage import UpbitDataStorage

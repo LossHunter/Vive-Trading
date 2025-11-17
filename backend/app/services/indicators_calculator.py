@@ -423,7 +423,7 @@ class IndicatorsCalculator:
         try:
             # count가 None이면 기본값 사용
             if count is None:
-                from config import ScriptConfig
+                from app.core.config import ScriptConfig
                 count = ScriptConfig.DEFAULT_INDICATORS_CANDLE_COUNT
             
             # 최소 필요한 데이터 개수 계산
@@ -756,7 +756,7 @@ class IndicatorsCalculator:
         try:
             # count가 None이면 기본값 사용
             if count is None:
-                from config import ScriptConfig
+                from app.core.config import ScriptConfig
                 count = ScriptConfig.DEFAULT_INDICATORS_CANDLE_COUNT
             
             # 캔들 데이터 조회 (최신 데이터부터 가져와서 오래된 순서로 정렬)

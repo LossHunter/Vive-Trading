@@ -11,8 +11,8 @@ from typing import List, Dict, Optional, TYPE_CHECKING
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from config import WalletConfig, UpbitAPIConfig
-from database import SessionLocal, UpbitAccounts, UpbitTicker
+from app.core.config import WalletConfig, UpbitAPIConfig
+from app.db.database import SessionLocal, UpbitAccounts, UpbitTicker
 
 if TYPE_CHECKING:
     from main import ConnectionManager

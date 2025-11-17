@@ -10,7 +10,7 @@ from typing import List
 from sqlalchemy.orm import Session
 from decimal import Decimal
 
-from config import IndicatorsConfig
+from app.core.config import IndicatorsConfig
 from app.db.database import SessionLocal, UpbitDayCandles, UpbitCandlesMinute3, UpbitRSI, UpbitIndicators
 from app.services.indicators_calculator import (
     IndicatorsCalculator, EMACalculator, MACDCalculator,
@@ -352,7 +352,7 @@ async def calculate_indicators_periodically():
                 today_utc = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
                 sixty_days_ago = today_utc - timedelta(days=60)
                 
-                from config import UpbitAPIConfig
+                from app.core.config import UpbitAPIConfig
                 
                 for market in UpbitAPIConfig.MAIN_MARKETS:
                     try:

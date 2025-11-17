@@ -24,7 +24,7 @@ class TradeDecision(BaseModel):
 
 # RAG 기능이 포함된 API 요청 본문 스키마
 class TradeDecisionRequest(BaseModel):
-    user_data_prompt: str
+    user_data_prompt: Optional[str] = None
     model_name: ModelName = "openai/gpt-oss-120b"
     market_data: Optional[Dict[str, Any]] = None  # RAG를 위한 구조화된 시장 데이터
 

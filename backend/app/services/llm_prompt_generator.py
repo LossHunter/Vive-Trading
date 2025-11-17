@@ -10,12 +10,12 @@ from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from config import UpbitAPIConfig, IndicatorsConfig, LLMPromptConfig
+from app.core.config import UpbitAPIConfig, IndicatorsConfig, LLMPromptConfig
 from app.db.database import (
     UpbitTicker, UpbitCandlesMinute3, UpbitDayCandles,
     UpbitIndicators, UpbitRSI, UpbitAccounts, LLMPromptData, SessionLocal
 )
-from core.schedule_utils import calculate_wait_seconds_until_next_scheduled_time
+from app.core.schedule_utils import calculate_wait_seconds_until_next_scheduled_time
 # 계산 로직은 indicators_calculator.py에서 처리하므로 import 불필요
 
 # 로깅 설정
@@ -290,7 +290,7 @@ class LLMPromptGenerator:
         current_price = self.get_current_price(market)
         
         # 인트라데이 시리즈 조회 (DB 우선 사용)
-        from config import ScriptConfig
+        from app.core.config import ScriptConfig
         intraday_series = self.get_intraday_series(market, count=ScriptConfig.DEFAULT_INTRADAY_SERIES_COUNT)
         
         # 현재 지표 값 (인트라데이 시리즈의 최신 값 사용)
@@ -355,8 +355,8 @@ class LLMPromptGenerator:
             - 초기 투자금액이 별도로 저장되어 있지 않아 total_return_percent는 0으로 설정됩니다.
             - Sharpe Ratio 계산을 위해서는 일일 수익률의 표준편차와 평균이 필요합니다.
         """
-        from database import UpbitTicker
-        from config import UpbitAPIConfig
+        from app.db.database import UpbitTicker
+        from app.core.config import UpbitAPIConfig
         
         # 최신 계정 데이터 조회
         accounts = self.db.query(UpbitAccounts).order_by(
@@ -452,7 +452,7 @@ class LLMPromptGenerator:
         Returns:
             str: 생성된 프롬프트 텍스트
         """
-        from config import UpbitAPIConfig
+        from app.core.config import UpbitAPIConfig
         
         prompt = f"It has been {trading_minutes} minute since you started trading.\n\n"
         prompt += "…\n\n"
