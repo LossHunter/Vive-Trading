@@ -5,17 +5,38 @@ import "../../styles/Chart.css";
 export default function RealTimeCandleChart({ bot, data }) {
     const [isPercent, setIsPercent] = useState(false);
 
-    // ① 기본 날짜 (2025년 11월 1일 ~ 12월 31일)
     const [days, setDays] = useState(() => {
         const arr = [];
-        const start = new Date(2025, 10, 1).getTime(); // 11월
-        const end = new Date(2025, 11, 31).getTime(); // 12월
-        const DAY = 1000 * 60 * 60 * 24;
-        for (let t = start; t <= end; t += DAY) arr.push(t);
+        const start = new Date(2025, 10, 1, 0, 0).getTime(); // 2025-11-01 00:00
+        const end = new Date(2025, 10, 1, 1, 60).getTime();   // 2025-11-02 00:00
+        const INTERVAL = 1000 * 60 * 15; // 15분
+
+        let prevDay = null;
+
+        for (let t = start; t <= end; t += INTERVAL) {
+            const d = new Date(t);
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hour = String(d.getHours()).padStart(2, '0');
+            const minute = String(d.getMinutes()).padStart(2, '0');
+
+            let formatted;
+            if (prevDay === d.getDate()) {
+                // 같은 날이면 시간만
+                formatted = `${hour}:${minute}`;
+            } else {
+                // 새로운 날이면 날짜 포함
+                formatted = `${month}/${day} ${hour}:${minute}`;
+            }
+
+            prevDay = d.getDate();
+            arr.push(formatted);
+        }
+
         return arr;
     });
+   
 
-    // ② 데이터에서 가장 최신 시간 확인 후 days 확장
     useEffect(() => {
         if (!data.length) return;
 
@@ -31,14 +52,14 @@ export default function RealTimeCandleChart({ bot, data }) {
         }
     }, [data, days]);
 
-    // ③ 퍼센트 변화 계산
+
     const getPercentChanges = (arr) => {
         const validArr = arr.filter(v => v != null);
         const startValue = validArr[0] ?? 1000;
         return arr.map(v => (v == null ? null : ((v - startValue) / startValue) * 100));
     };
 
-    // ④ 데이터 매핑
+    
     const datamapping = data.map(item => ({
         userId: item.userId,
         username: item.username,
@@ -105,7 +126,8 @@ export default function RealTimeCandleChart({ bot, data }) {
 
     // 1일 밀리초
     const DAY = 1000 * 60 * 60 * 24;
-
+    const FIFTEEN_MINUTES = 1000 * 60 * 15;
+    
     // ⑦ 차트 옵션
     const options = {
         chart: {
@@ -114,20 +136,12 @@ export default function RealTimeCandleChart({ bot, data }) {
             animations: { enabled: true, easing: "linear", speed: 800 }
         },
         xaxis: {
-            type: "datetime",
-            min: days[0], 
-            max: days[days.length - 1] + DAY * 5, // 마지막 날짜 + 5일 여유
-            tickAmount: 10,
+            type: "category",
+            categories: days,
+            tickAmount:5,
             labels: {
-                formatter: (val) => {
-                    const date = new Date(val);
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, "0");
-                    const day = String(date.getDate()).padStart(2, "0");
-                    return `${year}/${month}/${day}`;
-                },
                 rotate: -45,
-                style: { fontSize: "12px" }
+                style: { fontSize: "10px" }
             }
         },
         yaxis: {

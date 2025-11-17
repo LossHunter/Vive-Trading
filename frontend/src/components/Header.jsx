@@ -1,6 +1,6 @@
 ﻿import "../styles/Header.css"
 
-import { useUpbitTicker } from '../hooks/UpbitSocket.jsx';
+import { useUpbitTicker } from '../services/UpbitSocket.jsx';
 import { useNavigate, useLocation  } from "react-router-dom";
 
 import BitcoinLogo from '../assets/Bitcoin_logo.png';
@@ -12,46 +12,50 @@ import { useEffect, useState } from "react";
 
 import LoginModel from './Login.jsx';
 
+import { LogOut } from "../services/Http_Post.jsx"
+
 export default function Header() {
     const [isOpen, setIsOpen] =useState(false)
     const [loginText, setloginText] = useState("Login")
     const navigate = useNavigate();
 
     const goDash = () => {
-        const savedCode = localStorage.getItem("googleAuthCode");
+        const savedCode = localStorage.getItem("isLogin");
         if (!savedCode) {
             setIsOpen(true);
         } else {
-            const searchParams = new URLSearchParams(location.search);
-            searchParams.set("code", savedCode); 
-            navigate({
-                pathname: `/dashboard/${location.pathname}`,
-                search: searchParams.toString(), 
-            }, { replace: true });
+            navigate("/dashboard")
         }
     };
 
-    const Login = () => {
+    const Login = async () => {
         if (loginText === "Login") {
             setIsOpen(true);
         } else {
-            localStorage.removeItem("googleAuthCode");
-            setloginText("Login");
-            window.location.reload();
+            localStorage.removeItem("isLogin");
+
+            const check = await LogOut();
+
+            if(check)
+            {
+                setloginText("Login");
+                navigate("/");
+                window.location.reload();
+            }
+            else
+            {
+                alert("로그아웃 실패, 관리자에게 문의 하세요.")
+            }
         }
     };
 
     // 로그인 상황 파악
     const location = useLocation();
     useEffect(() => {
-        const savedCode = localStorage.getItem("googleAuthCode");
+        const savedCode = localStorage.getItem("isLogin");
         if (savedCode) {
             const searchParams = new URLSearchParams(location.search);
             setloginText("LogOut")
-            if (searchParams.get("code") !== savedCode) {
-                searchParams.set("code", savedCode);
-                navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
-            }
         }
     }, [location, navigate]);
     

@@ -47,6 +47,9 @@ __pycache__/
 *.json
 backup/
 
+# package.json 강제로 포함
+!package.json
+
 # Editor directories and files
 .vscode/
 !.vscode/extensions.json

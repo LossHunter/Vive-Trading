@@ -1,17 +1,36 @@
-﻿import { openDB } from 'idb';
+﻿import { openDB, deleteDB  } from 'idb';
 
 export default async function getDB() {
-  const db = await openDB("VT_DB", 1, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains("Chart_data")) {
-        db.createObjectStore("Chart_data");
-      }
-      if (!db.objectStoreNames.contains("Model_data")) {
-        db.createObjectStore("Model_data");
-      }
-    },
-  });
-  return db;
+  try {
+    const db = await openDB("VT_DB", 1, {
+      
+      upgrade(db) {
+        if (!db.objectStoreNames.contains("Chart_data")) {
+          db.createObjectStore("Chart_data");
+        }
+        if (!db.objectStoreNames.contains("Model_data")) {
+          db.createObjectStore("Model_data");
+        }
+      },
+    });
+    return db;
+  } catch (err) {
+    console.warn("DB 열기 실패, 삭제 후 재시도:", err);
+ 
+    await deleteDB("VT_DB");
+
+    const db = await openDB("VT_DB", 1, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains("Chart_data")) {
+          db.createObjectStore("Chart_data");
+        }
+        if (!db.objectStoreNames.contains("Model_data")) {
+          db.createObjectStore("Model_data");
+        }
+      },
+    });
+    return db;
+  }
 }
 
 export async function saveUpdate(storeName, updateNumber, data) {

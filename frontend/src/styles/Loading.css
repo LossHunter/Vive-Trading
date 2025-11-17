@@ -14,6 +14,7 @@
   justify-content: center;
 
   background-color: transparent;
+  z-index: 1000;
 }
 .spinner {
   width: 50px;

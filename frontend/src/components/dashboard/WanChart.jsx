@@ -9,67 +9,74 @@ function extractNumber(value) {
   }
   return 0;
 }
-
+const parentColor = getComputedStyle(document.documentElement)
+  .getPropertyValue('--text-color') || '#000'; // 기본값 #000
 export default function WandChart({ data }) {
   // 숫자로 변환된 데이터
-  const numericData = data.chart_data
-    .map(v => {
-      const num = extractNumber(v);
-      return num !== null ? num : 0;
-    });
+  const numericData = data.chart_data.map(v => {
+    const num = extractNumber(v);
+    return num !== null ? num : 0;
+  });
 
-  // x축 최대값
   const xMax = numericData.length;
 
-  // x축 단위 계산: max 10 → 1, max 11~20 → 2, max 21~30 → 3 ...
-  const xStep = Math.ceil(xMax / 10);
-
-  // x축 값 배열 생성
-  const xValues = numericData.map((_, idx) => idx + 1);
+  // series 데이터: x값은 0부터 시작
+  const series = [
+    {
+      name: data.metric_name,
+      data: numericData.map((y, idx) => ({ x: idx, y })),
+    },
+  ];
 
   const options = {
     chart: {
       id: "wand-chart",
       toolbar: { show: false },
-      zoom: { enabled: false },  // 확대/축소 비활성
-      pan: { enabled: false },   // 패닝 비활성
-      animations: { enabled: false } // 필요시 애니메이션도 제거
+      zoom: { enabled: false },
+      pan: { enabled: false },
+      animations: { enabled: false },
     },
     xaxis: {
-      min: 1,
-      max: xMax,
-      tickAmount: Math.ceil(xMax / xStep),
-      categories: xValues,
-      title: { text: "Step" },
+      type: "numeric",
+      min: 0,
+      max: xMax - 1,       // 데이터 마지막 인덱스
+      tickInterval: 1,     // 항상 1씩 증가
+      title: { 
+        text: "Step"
+      },
       labels: {
-        formatter: (val) => val.toString(),
+        formatter: (val) => {
+          if (val >= xMax) return ""; // 마지막 번호 필요 없으면 공백
+          return val + 1;             // 시각적으로 1부터 표시
+        },
       },
     },
     yaxis: {
-      title: { text: data.metric_name },
       labels: {
-        formatter: (val) => (isNaN(val) ? val : Number(val).toExponential(2)), // 지수 표기 2자리
+        formatter: (val) =>
+          isNaN(val) ? val : Number(val).toExponential(2),
       },
     },
     tooltip: {
       y: {
-        formatter: (val) => (isNaN(val) ? val : Number(val).toExponential(2)),
+        formatter: (val) =>
+          isNaN(val) ? val : Number(val).toExponential(2),
       },
     },
     title: {
-      text: data.run_name,
+      text: data.metric_name,
       align: "center",
     },
     stroke: { curve: "straight" },
   };
 
-  // series 데이터는 {x, y} 형태
-  const series = [
-    {
-      name: data.metric_name,
-      data: numericData.map((y, idx) => ({ x: idx + 1, y })),
-    },
-  ];
-
-  return <Chart options={options} series={series} type="line" height="100%" width="100%" />;
+  return (
+    <Chart
+      options={options}
+      series={series}
+      type="line"
+      height="100%"
+      width="100%"
+    />
+  );
 }
