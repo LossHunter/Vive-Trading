@@ -11,20 +11,8 @@ import ModelData from "../components/dashboard/ModelData"
 import Prompt from "../components/dashboard/Prompt"
 import Readme from "../components/dashboard/Readme"
 
-import WanData from "../services/WanDB_Api"
-import Loading from "../components/Loading"
-
 export default function DashBoard() {
     const [select, setSelect] = useState("Account")
-    const [loading, setLoading] = useState(true);
-    
-    const data = WanData();
-
-    useEffect(() => {
-        if (data && data.length > 0) {
-            setLoading(false);
-        }
-    }, [data]);
 
     const navigate = useNavigate();
 
@@ -42,34 +30,28 @@ export default function DashBoard() {
     },[select]);
     
     return (
-        <> 
-            {loading ? (
-                <Loading />
-            ) : (
-            <div className="frame">
-                <Header />
-                <div className="dash-main">
-                    <div className="dash-main-left">
-                        {menu.map((item, index)=>
-                        (
-                            <button 
-                            className="menu"
-                            key={item}
-                            onClick={()=>setSelect(item)}>
-                                {item}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="dash-main-center">
-                        {select === "Account" && <Account />}
-                        {select === "ModelData" && <ModelData data={data}/>}
-                        {select === "Prompt" && <Prompt />}
-                        {select === "Readme" && <Readme />}
-                    </div>
+        <div className="frame">
+            <Header />
+            <div className="dash-main">
+                <div className="dash-main-left">
+                    {menu.map((item, index)=>
+                    (
+                        <button 
+                        className="menu"
+                        key={item}
+                        onClick={()=>setSelect(item)}>
+                            {item}
+                        </button>
+                    ))}
                 </div>
-                <Footer />
+                <div className="dash-main-center">
+                    {select === "Account" && <Account />}
+                    {select === "ModelData" && <ModelData/>}
+                    {select === "Prompt" && <Prompt />}
+                    {select === "Readme" && <Readme />}
+                </div>
             </div>
-          )}
-        </>
-    );
+            <Footer />
+        </div>
+        )
 }

@@ -47,6 +47,7 @@ function data_split(data) {
     const sender_wallet = {
         userId: data.userId,
         username: data.username,
+        usemodel: data.usemodel,
         total: data.total,
         colors: data.colors,
         logo: data.logo,
@@ -73,19 +74,16 @@ export default function Home() {
     const [sender_wallet, setsender_wallet] = useState([]);
 
     const [loading, setLoading] = useState(true);
-    const [lastTime, setLastTime] = useState("");
 
-    const [isCacheExisit, setIscacheExisit] = useState(true);
-    const [socketEnabled, setSocketEnabled] = useState(false);
-    
+    const [isCacheExisit, setisCacheExisit] = useState(true);
+    const [lastTime, setLastTime] =useState("");
+
     useEffect(() => {
-        (async () => {
+        const fetchData = async () => {
             const cachedData = await loadUpdate("Chart_data", 1);
             if (cachedData) {
-                // indexedb 없을 시 초기화 호출
-                if(typeof cachedData.time === "undefined")
-                {
-                    setIscacheExisit(false)
+                if (typeof cachedData.time === "undefined") {
+                    setisCacheExisit(false);
                     return;
                 }
 
@@ -99,25 +97,22 @@ export default function Home() {
                 });
 
                 if (!isSequential) {
-                    setIscacheExisit(false);
-                    return;
-                }
-
-                const isVersion = await versionCheck({version : cachedData.time});
-                if (isVersion)
-                {
-                    setIscacheExisit(false)
+                    setisCacheExisit(false);
                     return;
                 }
 
                 setInitData(cachedData.data);
                 setLastTime(cachedData.time);
+            } else {
+                setisCacheExisit(false);
             }
-            else
-            {
-                setIscacheExisit(false)
-            }
-        })();
+        };
+
+        fetchData();
+
+        const intervalId = setInterval(fetchData, 3 * 60 * 1000);
+
+        return () => clearInterval(intervalId);
     }, []);
 
     useEffect(() => {
@@ -125,7 +120,15 @@ export default function Home() {
             (async () => {
                 try {
                     await clearStore("Chart_data", 1);
-                    const { allData, cachlastTime } = await LoginfetchAllData();
+
+                    let timeToSend = 0
+                    
+                    if(lastTime || lastTime == undefined || lastTime == "undefined")
+                    {
+                        timeToSend = lastTime
+                    }
+
+                    const { allData, cachlastTime } = await LoginfetchAllData(timeToSend);
                     const insertdata = {  time: cachlastTime, data: allData };
                     const result = await saveUpdate("Chart_data", 1, insertdata);
                     
@@ -179,43 +182,6 @@ export default function Home() {
         }
 
     }, [MappingData])
-
-    // useEffect(()=>
-    // {
-    //     if(sender_chart)
-    //     {
-    //         setSocketEnabled(true);
-    //     }
-    // },[sender_chart])
-
-    // const { socket_data, socketlasttime } = useSocketData({ lastTime, enabled: socketEnabled });
-
-    // // 초기 데이터에 추가 데이터 합치기
-    // useEffect(() => {
-    //     if (LiveData) {
-    //         const re_data = [...LiveData, socket_data];
-    //         setLiveData(re_data);
-    //     }
-    // }, [socket_data]);
-
-    // useEffect(() => {
-    //     if (socketlasttime){
-    //         (async () => {
-    //             try {
-    //                 await clearStore("Chart_data", 1);
-                    
-    //                 const insertdata = {
-    //                     time: socketlasttime,
-    //                     data: LiveData
-    //                 };
-
-    //                 await saveUpdate("Chart_data", 1, insertdata);
-    //             } catch (err) {
-    //                 console.error("DB 저장 에러:", err);
-    //             }
-    //         })();
-    //     }
-    // }, [socketlasttime]);
 
    return (
     <>

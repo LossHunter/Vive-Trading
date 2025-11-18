@@ -1,20 +1,169 @@
 .account-container {
+  width: 100%;
+  height: 100%;
+  background-color: inherit;
+  color: inherit;
+}
+
+.center {
     width: 100%;
-    height: 100%;
     display: flex;
-    flex-direction: column;
-    gap:15px;
+    flex-direction: row;
+    flex-wrap: wrap;  
+    gap : 10px;
+    padding: 15px;
+    justify-content: start;
+    gap : 20px;
 }
 
-.account-container p,
-.account-container h2 {
-    margin: 0;
+/* account-live */
+.account-live {
+    width: 400px;
+    height: 450px;
+    padding: 20px;
+    background-color: #f7f9fc;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.top {
-    width: 100%;
+.account-live h2 {
     text-align: center;
-    font-size: 20px;
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 1.5rem;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+}
+
+.account-live .infro p {
+    margin: 12px 0;
+    font-size: 1rem;
+    color: #444;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.account-live .infro input[type="text"] {
+    flex: 1;
+    margin-left: 10px;
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.account-live .infro input[type="text"]:focus {
+    border-color: #4a90e2;
+    box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
+    outline: none;
+}
+
+.account-live .infro button {
+    width: 100%;
+    padding: 10px 0;
+    margin-top: 15px;
+    background-color: #4a90e2;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.account-live .infro button:hover {
+    background-color: #357ABD;
+}
+
+.infro p {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    font-size: 18px;
+    font-weight: bold;
     color: inherit;
-    background-color: transparent;
+    margin: 10px;
+}
+
+
+/* coin_wallet */
+.coin_wallet {
+    width: 400px;
+    height: 450px;
+    padding: 15px 20px;
+    background-color: #f7f9fc;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    text-align: center;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.coin_wallet p {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.coin_wallet .roundchart {
+    width: 100%;
+    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* history */
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 15px;
+  width: 400px;
+  box-sizing: border-box;
+  background-color: #f9f9f9;
+  border-radius: 12px;
+}
+
+/* 검색창 */
+.history .Search {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  margin-bottom: 10px;
+  width: 250px;
+}
+
+.history-card {
+  background-color: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 12px 15px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.history-card h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.history-card p {
+  margin: 0;
+  font-size: 14px;
+  color: #555;
+}
+
+.history-card span.date {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
 }

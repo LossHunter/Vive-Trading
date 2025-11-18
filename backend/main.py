@@ -258,9 +258,20 @@ async def get_ticker(db: Session = Depends(get_db)):
 
 ####################################################################################################
 
-# 프론트 엔드 부분 routers 폴더에서 관리 예정
-from routers import SendData
-app.include_router(SendData.router, prefix="/api")
+# 프론트 엔드 부분 app.routers 폴더에서 관리 예정
+from app.routers import SendData, Wandb, Login_jwt, GetUser
+
+## wallet 전송
+app.include_router(SendData.router, prefix="/api") 
+
+## wandb 전송
+app.include_router(Wandb.router, prefix="/api")
+
+## 로그인 jwt
+app.include_router(Login_jwt.router, prefix="/api")
+
+## userdata 전송
+app.include_router(GetUser.router, prefix="/api")
 
 # 보안 이슈로 Post방식 쓸 예
 # @app.get("/api/wallet")

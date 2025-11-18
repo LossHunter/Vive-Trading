@@ -52,8 +52,7 @@ export default function Analyze({ sender_analyze }) {
 
             <button className="bot-position" ref={displayRef}>
                 <div className="usemodel">
-                    <p> Model : {currentAnalyze?.usemodel?.at(-1)}
-                    </p>
+                    <p> Model : {currentAnalyze?.usemodel?.at(-1)} </p>
                 </div>
                 <div className="time">
                     <p>

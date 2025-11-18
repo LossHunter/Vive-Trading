@@ -3,9 +3,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Request, HTTPException
 import jwt
-from main import get_wallet_data_list_other
-from app.db.database import get_db
 import logging
+from datetime import datetime
+
+from app.services.wallet_service import get_wallet_data_list_other
+from app.db.database import get_db
 
 logging.basicConfig( # 로그출력 형식
     level=logging.INFO,
@@ -33,11 +35,17 @@ def Mapping(wallet_data):
     senddata = list(datainput.values())
     return senddata
 
-class UserId(BaseModel):
-    userid: int
+def DateCheck(time):
+    ts_s = time / 1000
+
+    return True
+
+class LastTime(BaseModel):
+    lasttime: int = 0
 
 @router.post("/wallet")
-async def datalist(request: Request, db: Session = Depends(get_db)):
+async def datalist(request: Request, getdata:LastTime, db: Session = Depends(get_db)):
+    time = getdata.lasttime
     token = request.cookies.get("jwt")
     
     ## 테스트용으로 HTTP ONLY 쿠키는 안받아오는걸로..
@@ -60,10 +68,10 @@ async def datalist(request: Request, db: Session = Depends(get_db)):
     ## DB 접근 필히 비동기로 접근 할 것
     try:
         wallet_data = await get_wallet_data_list_other(db)
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"지갑 데이터 조회 중 오류 발생: {str(e)}")
     
+
     data = Mapping(wallet_data=wallet_data)
 
     return data

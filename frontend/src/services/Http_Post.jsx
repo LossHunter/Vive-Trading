@@ -70,18 +70,19 @@ export async function LogOut() {
     }
 }
 
-export async function LoginfetchAllData() {
+export async function LoginfetchAllData(time) {
   try {
     const res = await fetch(`${import.meta.env.VITE_GET_URL}/api/wallet`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lasttime: time }),
       credentials: 'include',
     });
 
     if (!res.ok) throw new Error("서버 응답 실패");
 
     const data = await res.json();
-    console.log(data)
+
     const parseTime = (value) => {
         const str = String(value);
         const year = +str.slice(0, 4);
@@ -91,6 +92,9 @@ export async function LoginfetchAllData() {
         const minute = +str.slice(10, 12);
         return new Date(year, month, day, hour, minute, 0).getTime(); 
     };
+
+    // usermodel 사용
+    // home, dashboard/AnalzePanel
 
     const allData = data.map(item => {
       const userData = item.map(dayArray => ({
@@ -183,6 +187,5 @@ export async function ID_data() {
 
   } catch (err) {
     console.error("데이터 가져오기 실패:", err);
-    return null;
   }
 }

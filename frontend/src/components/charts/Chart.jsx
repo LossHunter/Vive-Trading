@@ -74,22 +74,23 @@ export default function RealTimeCandleChart({ bot, data }) {
         .filter(user => bot === "all" || user.userId === bot)
         .map(user => {
             const yValues = isPercent
-                ? getPercentChanges(user.total_asset)
-                : user.total_asset;
+            ? getPercentChanges(user.total_asset)
+            : user.total_asset;
 
-            const dataWithNulls = days.map(day => {
-                const index = user.time.findIndex(t => t === day);
-                return { x: day, y: index >= 0 ? yValues[index] : null };
-            });
+            const dataPoints = user.time.map((t, idx) => ({
+            x: t,           // 밀리초 값 그대로
+            y: yValues[idx] ?? 0  // 값 없으면 0
+            }));
 
             return {
-                name: user.username,
-                color: user.colors,
-                logo: user.logo,
-                data: dataWithNulls
+            name: user.username,
+            color: user.colors,
+            logo: user.logo,
+            data: dataPoints
             };
         });
 
+    console.log(filteredSeries)
     // ⑥ Y축 계산
     const y_unit = 2_000_000;
     const initialMoneyMin = 8_000_000;
@@ -136,9 +137,7 @@ export default function RealTimeCandleChart({ bot, data }) {
             animations: { enabled: true, easing: "linear", speed: 800 }
         },
         xaxis: {
-            type: "category",
-            categories: days,
-            tickAmount:5,
+            type: "datetime",
             labels: {
                 rotate: -45,
                 style: { fontSize: "10px" }
