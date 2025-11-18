@@ -38,7 +38,7 @@ async def calculate_indicators_for_date_range(db: Session, market: str, start_da
         candles_day = db.query(UpbitDayCandles).filter(
             UpbitDayCandles.market == market,
             UpbitDayCandles.candle_date_time_utc <= end_date
-        ).order_by(UpbitDayCandles.candle_date_time_utc.desc()).limit(200).all()
+        ).order_by(UpbitDayCandles.candle_date_time_utc.desc()).limit(2000).all()
         
         candles_day = list(reversed(candles_day))
         
@@ -62,7 +62,7 @@ async def calculate_indicators_for_date_range(db: Session, market: str, start_da
         candles_minute3 = db.query(UpbitCandlesMinute3).filter(
             UpbitCandlesMinute3.market == market,
             UpbitCandlesMinute3.candle_date_time_utc <= end_date
-        ).order_by(UpbitCandlesMinute3.candle_date_time_utc.desc()).limit(200).all()
+        ).order_by(UpbitCandlesMinute3.candle_date_time_utc.desc()).limit(2000).all()
         
         candles_minute3 = list(reversed(candles_minute3))
         
@@ -333,7 +333,7 @@ async def calculate_indicators_periodically():
     """
     기술 지표 주기적 계산
     캔들 데이터 수집과 독립적으로 주기적으로 기술 지표를 계산합니다.
-    매일 자정(UTC)에 실행되어 과거 60일치 데이터를 재계산합니다.
+    매일 자정(UTC)에 실행되어 과거 120일치 데이터를 재계산합니다.
     """
     while True:
         try:
@@ -350,13 +350,13 @@ async def calculate_indicators_periodically():
             db = SessionLocal()
             try:
                 today_utc = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-                sixty_days_ago = today_utc - timedelta(days=60)
+                one_hundred_twenty_days_ago = today_utc - timedelta(days=120)
                 
                 from app.core.config import UpbitAPIConfig
                 
                 for market in UpbitAPIConfig.MAIN_MARKETS:
                     try:
-                        await calculate_indicators_for_date_range(db, market, sixty_days_ago, today_utc)
+                        await calculate_indicators_for_date_range(db, market, one_hundred_twenty_days_ago, today_utc)
                     except Exception as e:
                         logger.error(f"❌ {market} 주기적 지표 계산 오류: {e}")
                         continue

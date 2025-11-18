@@ -4,7 +4,7 @@ LLM 거래 신호를 기반으로 가상 계좌에서 거래를 시뮬레이션�
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional, Dict, List
 from uuid import UUID
@@ -64,7 +64,7 @@ class TradingSimulator:
                 avg_buy_price=Decimal("0"),
                 avg_buy_price_modified=False,
                 unit_currency="KRW",
-                collected_at=datetime.utcnow()
+                collected_at=datetime.now(timezone.utc)
             )
             
             self.db.add(krw_account)
@@ -567,15 +567,70 @@ class TradingSimulator:
             avg_buy_price = self._get_avg_buy_price(str(signal.account_id), signal.coin)
             notes_parts = []
             
+            # profit_target 또는 stop_loss 달성 여부 확인
+            if avg_buy_price > 0:
+                profit_loss = (current_price - avg_buy_price) * quantity
+                profit_loss_percent = ((current_price - avg_buy_price) / avg_buy_price * 100) if avg_buy_price > 0 else 0
+                
+                if signal.profit_target and current_price >= float(signal.profit_target):
+                    notes_parts.append(f"목표가 달성 ({current_price:,.2f} >= {float(signal.profit_target):,.2f})")
+                elif signal.stop_loss and current_price <= float(signal.stop_loss):
+                    notes_parts.append(f"손절가 도달 ({current_price:,.2f} <= {float(signal.stop_loss):,.2f})")
+                else:
+                    notes_parts.append(f"수익률: {profit_loss_percent:.2f}%")
+            
+            logger.info("-" * 80)
+            logger.info("👉 [매도 실행 시작]")
+            logger.info(f"  매도 수량: {quantity}")
+            logger.info(f"  현재가: {current_price:,.2f} KRW")
+            logger.info(f"  거래 전 {signal.coin} 잔액: {coin_before:.8f}")
             
             # 매도 실행
             success = self.execute_sell(signal.account_id, signal.coin, quantity, current_price)
+            logger.info(f"  execute_sell() 결과: {success}")
             
             # 거래 후 잔액
             coin_after = self.get_account_balance(signal.account_id, signal.coin)
+            logger.info(f"  거래 후 {signal.coin} 잔액: {coin_after:.8f}")
+            
+            if success:
+                logger.info("  ✅ 매도 성공!")
+                logger.info(f"    - 수량: {quantity:.8f} {signal.coin}")
+                logger.info(f"    - 가격: {current_price:,.2f} KRW")
+                
+                total_revenue = quantity * current_price
+                logger.info(f"    - 총액: {total_revenue:,.2f} KRW")
+                
+                if notes_parts:
+                    logger.info(f"    - 사유: {', '.join(notes_parts)}")
+                
+                # 성공 기록 저장
+                logger.info("  llm_trading_execution 테이블에 성공 기록 저장 중...")
+                self._save_execution_record(
+                    **execution_record,
+                    executed_quantity=quantity,
+                    balance_after=coin_after,
+                    execution_status="success",
+                    notes=f"매도 완료: {quantity:.8f} {signal.coin} @ {current_price:,.2f} KRW. {', '.join(notes_parts) if notes_parts else ''}"
+                )
+                logger.info("-" * 80)
+                return True
+            else:
+                logger.error("  ❌ execute_sell() 함수가 False 반환")
+                # 실패 기록 저장
+                self._save_execution_record(
+                    **execution_record,
+                    executed_quantity=Decimal("0"),
+                    balance_after=coin_before,
+                    execution_status="failed",
+                    failure_reason="execute_sell() 실패"
+                )
+                logger.info("-" * 80)
+                return False
             
         except Exception as e:
             logger.error(f"❌ 매도 신호 실행 실패: {e}")
+            logger.error("-" * 80, exc_info=True)
             self._save_execution_record(
                 **execution_record,
                 execution_status="failed",
@@ -616,7 +671,7 @@ class TradingSimulator:
                 avg_buy_price=avg_buy_price if avg_buy_price else account.avg_buy_price,
                 avg_buy_price_modified=False,
                 unit_currency="KRW",
-                collected_at=datetime.utcnow()
+                collected_at=datetime.now(timezone.utc)
             )
         else:
             # 새 레코드 생성
@@ -628,7 +683,7 @@ class TradingSimulator:
                 avg_buy_price=avg_buy_price if avg_buy_price else Decimal("0"),
                 avg_buy_price_modified=False,
                 unit_currency="KRW",
-                collected_at=datetime.utcnow()
+                collected_at=datetime.now(timezone.utc)
             )
         
         self.db.add(new_account)
@@ -697,7 +752,7 @@ class TradingSimulator:
             # 시간 지연 계산
             time_delay = None
             if signal_created_at:
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 time_delay = (now - signal_created_at).total_seconds()
             
             execution = LLMTradingExecution(

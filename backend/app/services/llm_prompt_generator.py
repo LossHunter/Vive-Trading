@@ -5,7 +5,7 @@ LLM 프롬프트 생성 모듈
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -22,6 +22,31 @@ from app.core.schedule_utils import calculate_wait_seconds_until_next_scheduled_
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# 전역 서버 시작 시간 (서버 시작 시 설정됨)
+_server_start_time: Optional[datetime] = None
+
+
+def set_server_start_time(start_time: datetime) -> None:
+    """
+    서버 시작 시간 설정 (전역 변수)
+    
+    Args:
+        start_time: 서버 시작 시각 (UTC)
+    """
+    global _server_start_time
+    _server_start_time = start_time
+    logger.info(f"서버 시작 시간 설정: {start_time}")
+
+
+def get_server_start_time() -> Optional[datetime]:
+    """
+    서버 시작 시간 조회
+    
+    Returns:
+        datetime | None: 서버 시작 시각 (UTC), 설정되지 않았으면 None
+    """
+    return _server_start_time
+
 
 class LLMPromptGenerator:
     """LLM 프롬프트 생성 클래스"""
@@ -36,14 +61,19 @@ class LLMPromptGenerator:
         """
         self.db = db
         if trading_start_time is None:
-            # 기본값: 현재 시각에서 2399분 전
-            self.trading_start_time = datetime.utcnow() - timedelta(minutes=2399)
+            # 전역 서버 시작 시간이 설정되어 있으면 사용, 없으면 기본값 사용
+            global _server_start_time
+            if _server_start_time is not None:
+                self.trading_start_time = _server_start_time
+            else:
+                # 기본값: 현재 시각에서 2399분 전
+                self.trading_start_time = datetime.now(timezone.utc) - timedelta(minutes=2399)
         else:
             self.trading_start_time = trading_start_time
     
     def calculate_trading_minutes(self) -> int:
         """거래 시작 후 경과 시간(분) 계산"""
-        elapsed = datetime.utcnow() - self.trading_start_time
+        elapsed = datetime.now(timezone.utc) - self.trading_start_time
         return int(elapsed.total_seconds() / 60)
     
     def get_current_price(self, market: str) -> Optional[float]:
@@ -571,7 +601,7 @@ class LLMPromptGenerator:
             
             # 데이터베이스에 저장 (프롬프트 텍스트 포함)
             prompt_data = LLMPromptData(
-                generated_at=datetime.utcnow(),
+                generated_at=datetime.now(timezone.utc),
                 trading_minutes=trading_minutes,
                 prompt_text=prompt_text,
                 market_data_json=market_data,

@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from sqlalchemy import desc
@@ -69,7 +69,7 @@ def _build_wallet_rows(prompt: LlmPromptData, signals: list[LlmTradingSignal]) -
     if default_signal and default_signal.get("created_at"):
         time_str = default_signal["created_at"].strftime("%Y/%m/%d")
     else:
-        time_str = (prompt.generated_at or prompt.created_at or datetime.utcnow()).strftime("%Y/%m/%d")
+        time_str = (prompt.generated_at or prompt.created_at or datetime.now(timezone.utc)).strftime("%Y/%m/%d")
     
     account_by_user = {row.get("userId"): row for row in account_rows}
 

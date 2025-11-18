@@ -152,6 +152,7 @@ async def get_trade_decision(
     """
     model = get_preferred_model_name(model_name)
     db = SessionLocal()
+    raw_content = ""  # 예외 처리에서 참조할 수 있도록 초기화
     try:
         generator = LLMPromptGenerator(db)
         prompt_data = generator.generate_and_save() # generate_and_save() 호출
@@ -234,6 +235,8 @@ async def get_trade_decision(
         raise ValueError("LLM이 유효한 JSON을 반환하지 않았습니다.") from exc
     except Exception as exc:
         logger.error("❌ vLLM 호출 중 오류 발생: %s", exc)
+        if raw_content:
+            logger.debug("LLM raw output: %s", raw_content)
         db.rollback()
         raise
     finally:
