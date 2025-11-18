@@ -10,12 +10,13 @@ from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from app.core.config import UpbitAPIConfig, IndicatorsConfig, LLMPromptConfig
 from app.db.database import (
     UpbitTicker, UpbitCandlesMinute3, UpbitDayCandles,
-    UpbitIndicators, UpbitRSI, UpbitAccounts, LLMPromptData, SessionLocal
+    UpbitIndicators, UpbitRSI, UpbitAccounts, LLMPromptData, SessionLocal, TradingSession # TradingSession 추가
 )
 from app.core.schedule_utils import calculate_wait_seconds_until_next_scheduled_time
+from uuid import UUID # UUID import 추가
+
 # 계산 로직은 indicators_calculator.py에서 처리하므로 import 불필요
 
 # 로깅 설정
@@ -26,24 +27,48 @@ logger = logging.getLogger(__name__)
 class LLMPromptGenerator:
     """LLM 프롬프트 생성 클래스"""
     
-    def __init__(self, db: Session, trading_start_time: Optional[datetime] = None):
+    def __init__(self, db: Session, account_id: UUID):
         """
         초기화
         
         Args:
             db: 데이터베이스 세션
-            trading_start_time: 거래 시작 시각 (None이면 현재 시각에서 2399분 전으로 설정)
+            account_id: 거래 주체의 계정 ID
         """
         self.db = db
-        if trading_start_time is None:
-            # 기본값: 현재 시각에서 2399분 전
-            self.trading_start_time = datetime.utcnow() - timedelta(minutes=2399)
+        self.account_id = account_id
+        self.trading_start_time = self._get_or_create_trading_start_time()
+    
+    def _get_or_create_trading_start_time(self) -> datetime:
+        """
+        DB에서 거래 시작 시간을 가져오거나, 없으면 새로 생성합니다.
+        """
+        session = self.db.query(TradingSession).filter(TradingSession.account_id == self.account_id).first()
+        
+        if session:
+            # 기존 세션이 있으면 시작 시간 반환
+            logger.info(f"Account {self.account_id}: 기존 거래 세션을 사용합니다. 시작 시간: {session.start_time}")
+            return session.start_time
         else:
-            self.trading_start_time = trading_start_time
+            # 첫 거래이므로 새로운 세션 생성
+            new_start_time = datetime.utcnow()
+            new_session = TradingSession(
+                account_id=self.account_id,
+                start_time=new_start_time
+            )
+            self.db.add(new_session)
+            self.db.commit()
+            self.db.refresh(new_session)
+            logger.info(f"Account {self.account_id}: 새로운 거래 세션을 시작합니다. 시작 시간: {new_start_time}")
+            return new_start_time
     
     def calculate_trading_minutes(self) -> int:
         """거래 시작 후 경과 시간(분) 계산"""
-        elapsed = datetime.utcnow() - self.trading_start_time
+        # self.trading_start_time이 UTC naive datetime일 수 있으므로, timezone 정보를 통일
+        # DB에서 가져온 datetime 객체는 timezone 정보가 있을 수 있으므로, utcnow()와 비교 시 주의
+        # 여기서는 utcnow()와 비교하기 위해 tzinfo를 제거하거나, 모두 UTC로 통일하는 것이 안전
+        start_time_utc = self.trading_start_time.replace(tzinfo=None) if self.trading_start_time.tzinfo else self.trading_start_time
+        elapsed = datetime.utcnow() - start_time_utc
         return int(elapsed.total_seconds() / 60)
     
     def get_current_price(self, market: str) -> Optional[float]:
@@ -358,8 +383,10 @@ class LLMPromptGenerator:
         from app.db.database import UpbitTicker
         from app.core.config import UpbitAPIConfig
         
-        # 최신 계정 데이터 조회
-        accounts = self.db.query(UpbitAccounts).order_by(
+        # 최신 계정 데이터 조회 (self.account_id로 필터링)
+        accounts = self.db.query(UpbitAccounts).filter(
+            UpbitAccounts.account_id == str(self.account_id) # UUID를 문자열로 변환하여 비교
+        ).order_by(
             desc(UpbitAccounts.collected_at)
         ).all()
         

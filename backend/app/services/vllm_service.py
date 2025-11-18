@@ -153,7 +153,13 @@ async def get_trade_decision(
     model = get_preferred_model_name(model_name)
     db = SessionLocal()
     try:
-        generator = LLMPromptGenerator(db)
+        if not account_id:
+            raise ValueError(f"모델 '{model}'에 대한 유효한 account_id를 찾을 수 없습니다.")
+
+        # 2. account_id를 사용하여 LLMPromptGenerator 생성
+        generator = LLMPromptGenerator(db, account_id=account_id)
+        
+        # 3. 프롬프트 생성 및 저장
         prompt_data = generator.generate_and_save() # generate_and_save() 호출
         if not prompt_data:
             raise ValueError("프롬프트 데이터를 생성하지 못했습니다.")

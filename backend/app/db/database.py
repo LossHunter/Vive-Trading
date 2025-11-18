@@ -33,6 +33,7 @@ __all__ = [
     "LLMPromptData",
     "LLMTradingSignal",
     "LLMTradingExecution",
+    "TradingSession", # 새로 추가
     # Database utilities
     "Base",
     "engine",
@@ -254,42 +255,21 @@ class LLMTradingSignal(Base):
 class LLMTradingExecution(Base):
     """LLM 거래 실행 기록 테이블"""
     __tablename__ = "llm_trading_execution"
+    # ... (기존 LLMTradingExecution 모델 정의)
+
+
+class TradingSession(Base):
+    __tablename__ = "trading_sessions"
     
-    id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
-    signal_id = Column(BigInteger, nullable=False, comment="거래 신호 ID (llm_trading_signal FK)")
-    account_id = Column(UUID(as_uuid=True), nullable=True, comment="계정 ID")
-    coin = Column(Text, nullable=False, comment="코인 심볼")
-    signal_type = Column(Text, nullable=False, comment="신호 타입 (buy_to_enter, sell_to_exit, hold)")
-    
-    # 실행 정보
-    execution_status = Column(Text, nullable=False, comment="실행 상태 (success, failed, skipped)")
-    failure_reason = Column(Text, comment="실패 사유")
-    
-    # 가격 정보
-    intended_price = Column(Numeric(20, 8), comment="LLM이 판단한 가격 (신호 생성 시각)")
-    executed_price = Column(Numeric(20, 8), comment="실제 체결 가격 (실행 시각)")
-    price_slippage = Column(Numeric(10, 4), comment="슬리피지 (%) = (executed - intended) / intended * 100")
-    
-    # 수량 정보
-    intended_quantity = Column(Numeric(30, 10), comment="의도한 수량")
-    executed_quantity = Column(Numeric(30, 10), comment="실제 체결 수량")
-    
-    # 잔액 정보
-    balance_before = Column(Numeric(30, 10), comment="거래 전 잔액")
-    balance_after = Column(Numeric(30, 10), comment="거래 후 잔액")
-    
-    # 시각 정보
-    signal_created_at = Column(DateTime(timezone=True), comment="신호 생성 시각")
-    executed_at = Column(DateTime(timezone=True), server_default=func.now(), comment="실행 시각")
-    time_delay = Column(Numeric(10, 3), comment="실행 지연 시간 (초)")
-    
-    # 추가 정보
-    profit_target = Column(Numeric(20, 8), comment="목표가")
-    stop_loss = Column(Numeric(20, 8), comment="손절가")
-    notes = Column(Text, comment="비고")
+    id = Column(Integer, primary_key=True, index=True)
+    account_id = Column(UUID(as_uuid=False), unique=True, nullable=False, comment="계정 식별자")
+    start_time = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="거래 시작 시각 (UTC)")
+    is_active = Column(Boolean, default=True, nullable=False, comment="세션 활성화 여부")
 
 
 # ==================== 데이터베이스 유틸리티 함수 ====================
+
+def get_db() -> Session:
 
 def get_db() -> Session:
     """
