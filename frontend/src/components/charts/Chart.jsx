@@ -1,46 +1,65 @@
 ﻿import React, { useState, useEffect } from "react";
 import Chart from "react-apexcharts";
-import "../styles/Chart.css";
+import "../../styles/Chart.css";
 
 export default function RealTimeCandleChart({ bot, data }) {
     const [isPercent, setIsPercent] = useState(false);
+
     const [days, setDays] = useState(() => {
         const arr = [];
-        const start = new Date(2025, 10, 1);
-        const end = new Date(2025, 11, 31);
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            arr.push(new Date(d).getTime());
+        const start = new Date(2025, 10, 1, 0, 0).getTime(); // 2025-11-01 00:00
+        const end = new Date(2025, 10, 1, 1, 60).getTime();   // 2025-11-02 00:00
+        const INTERVAL = 1000 * 60 * 15; // 15분
+
+        let prevDay = null;
+
+        for (let t = start; t <= end; t += INTERVAL) {
+            const d = new Date(t);
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hour = String(d.getHours()).padStart(2, '0');
+            const minute = String(d.getMinutes()).padStart(2, '0');
+
+            let formatted;
+            if (prevDay === d.getDate()) {
+                // 같은 날이면 시간만
+                formatted = `${hour}:${minute}`;
+            } else {
+                // 새로운 날이면 날짜 포함
+                formatted = `${month}/${day} ${hour}:${minute}`;
+            }
+
+            prevDay = d.getDate();
+            arr.push(formatted);
         }
+
         return arr;
     });
+   
 
     useEffect(() => {
         if (!data.length) return;
 
         const allTimes = data.flatMap(item => item.time.map(t => new Date(t).getTime()));
         const maxTime = Math.max(...allTimes);
-
         const lastDay = days[days.length - 1];
+        const DAY = 1000 * 60 * 60 * 24;
+
         if (maxTime > lastDay) {
             const newDays = [...days];
-            const endDate = new Date(lastDay);
-            const newEnd = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 31);
-
-            for (let d = new Date(endDate); d <= newEnd; d.setDate(d.getDate() + 1)) {
-                newDays.push(new Date(d).getTime());
-            }
-
+            for (let t = lastDay + DAY; t <= maxTime + DAY; t += DAY) newDays.push(t);
             setDays(newDays);
         }
-    }, [data]);
+    }, [data, days]);
 
-    // 퍼센트 변화 계산 (null 안전 처리)
+
     const getPercentChanges = (arr) => {
         const validArr = arr.filter(v => v != null);
         const startValue = validArr[0] ?? 1000;
         return arr.map(v => (v == null ? null : ((v - startValue) / startValue) * 100));
     };
 
+    
     const datamapping = data.map(item => ({
         userId: item.userId,
         username: item.username,
@@ -50,6 +69,7 @@ export default function RealTimeCandleChart({ bot, data }) {
         time: item.time.map(t => new Date(t).getTime())
     }));
 
+    // ⑤ 필터링된 시리즈 데이터
     const filteredSeries = datamapping
         .filter(user => bot === "all" || user.userId === bot)
         .map(user => {
@@ -70,6 +90,7 @@ export default function RealTimeCandleChart({ bot, data }) {
             };
         });
 
+    // ⑥ Y축 계산
     const y_unit = 2_000_000;
     const initialMoneyMin = 8_000_000;
     const initialMoneyMax = 12_000_000;
@@ -88,13 +109,26 @@ export default function RealTimeCandleChart({ bot, data }) {
         ? Math.max(...yValuesAll, initialPercentMax)
         : Math.max(...yValuesAll, initialMoneyMax);
 
-    const yMin = isPercent ? rawYMin * 0.9 : rawYMin * 0.9;
-    const yMax = isPercent ? rawYMax * 1.1 : rawYMax * 1.1;
+    const yMin = rawYMin * 0.9;
+    const yMax = rawYMax * 1.1;
 
-    const yMinTick = isPercent ? Math.floor(yMin / 10) * 10 : Math.floor(yMin / y_unit) * y_unit;
-    const yMaxTick = isPercent ? Math.ceil(yMax / 10) * 10 : Math.ceil(yMax / y_unit) * y_unit;
-    const yTickAmount = isPercent ? Math.ceil((yMaxTick - yMinTick) / 10) : Math.ceil((yMaxTick - yMinTick) / y_unit);
+    const yMinTick = isPercent
+        ? Math.floor(yMin / 10) * 10
+        : Math.floor(yMin / y_unit) * y_unit;
 
+    const yMaxTick = isPercent
+        ? Math.ceil(yMax / 10) * 10
+        : Math.ceil(yMax / y_unit) * y_unit;
+
+    const yTickAmount = isPercent
+        ? Math.ceil((yMaxTick - yMinTick) / 10)
+        : Math.ceil((yMaxTick - yMinTick) / y_unit);
+
+    // 1일 밀리초
+    const DAY = 1000 * 60 * 60 * 24;
+    const FIFTEEN_MINUTES = 1000 * 60 * 15;
+    
+    // ⑦ 차트 옵션
     const options = {
         chart: {
             type: "line",
@@ -102,14 +136,12 @@ export default function RealTimeCandleChart({ bot, data }) {
             animations: { enabled: true, easing: "linear", speed: 800 }
         },
         xaxis: {
-            type: "datetime",
+            type: "category",
+            categories: days,
+            tickAmount:5,
             labels: {
-                formatter: (val) => {
-                    const date = new Date(val);
-                    return `${date.getMonth() + 1}/${String(date.getDate()).padStart(2, "0")}`;
-                },
                 rotate: -45,
-                style: { fontSize: "12px" }
+                style: { fontSize: "10px" }
             }
         },
         yaxis: {

@@ -13,9 +13,11 @@ export default defineConfig({
       //     key: fs.readFileSync(path.join(certDir, 'key.pem')),
       //     cert: fs.readFileSync(path.join(certDir, 'cert.pem')),
       // },
+      // host: true, 
+      // allowedHosts: ["vt.ngrok.pro"],
       watch: {
-      usePolling: true,  // 파일 변화를 폴링 방식으로 감지
-      interval: 100,     // 100ms마다 체크
-    },
+        usePolling: true, 
+        interval: 100,   
+      },
   }
 })

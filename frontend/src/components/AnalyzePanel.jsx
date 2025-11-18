@@ -51,12 +51,18 @@ export default function Analyze({ sender_analyze }) {
             <div className="right-space" />
 
             <button className="bot-position" ref={displayRef}>
+                <div className="usemodel">
+                    <p> Model : {currentAnalyze?.usemodel?.at(-1)}
+                    </p>
+                </div>
                 <div className="time">
                     <p>
-                    Time Point : {currentAnalyze?.time?.at(-1)
+                    Time : {currentAnalyze?.time?.at(-1)
                         ? new Date(currentAnalyze.time.at(-1)).getFullYear() + "년 " +
                         String(new Date(currentAnalyze.time.at(-1)).getMonth() + 1).padStart(2, "0") + "월 " +
-                        String(new Date(currentAnalyze.time.at(-1)).getDate()).padStart(2, "0") + "일"
+                        String(new Date(currentAnalyze.time.at(-1)).getDate()).padStart(2, "0") + "일 " +
+                        String(new Date(currentAnalyze.time.at(-1)).getHours()).padStart(2, "0") + "시 " +
+                        String(new Date(currentAnalyze.time.at(-1)).getMinutes()).padStart(2, "0") + "분"
                         : "-"
                     }
                     </p>

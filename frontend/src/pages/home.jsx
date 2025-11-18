@@ -1,16 +1,28 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, use } from "react";
 import '../styles/home.css';
-import RealTimeCandleChart from '../components/Chart.jsx'
+
+// components/charts 폴더
+import RealTimeCandleChart from '../components/charts/Chart.jsx'
+// import RealTimeCandleChart from '../components/charts/ReChart.jsx'
+// import RealTimeCandleChart from '../components/charts/LightChart.jsx'
+// import RealTimeCandleChart from '../components/charts/EChart.jsx'
+
 import Analyze from '../components/AnalyzePanel.jsx';
 
 import WalletList from '../components/Wallet_Rank';
 
-import { fetchAllData  } from '../components/Http_Get.jsx';
-import { useSocketData } from '../components/Socket.jsx';
+// serviecs 폴더
+import { fetchAllData  } from '../services/Http_Get.jsx';
+import { useSocketData } from '../services/Socket.jsx';
+import { versionCheck, LoginfetchAllData } from '../services/Http_Post.jsx';
 
+// components 폴더
 import Loading from "../components/Loading.jsx"
 import Header from "../components/Header.jsx";
 import Footer from "../components/Footer.jsx";
+
+import { saveUpdate, loadUpdate, clearStore } from "../components/OpenDB.jsx"
+
 
 function data_split(data) {
     const sender_chart = {
@@ -25,6 +37,7 @@ function data_split(data) {
     const sender_analyze = {
         userId: data.userId,
         username: data.username,
+        usemodel: data.usemodel,
         logo: data.logo,
         time: data.time,
         why: data.why,
@@ -49,52 +62,6 @@ function data_split(data) {
     return { sender_chart, sender_analyze, sender_wallet };
 }
 
-function accumulate(init_data) {
-    const nums = [1, 2, 3, 4];
-    const datalist = [];
-
-    nums.forEach(num => {
-        const userData = [];
-        let userid, username, color, logo;
-
-        init_data.forEach(dayArray => {
-            dayArray.forEach(item => {
-                if (item.userId === num) {
-                    userid = item.userId;
-                    username = item.username;
-                    color = item.colors;
-                    logo = item.logo;
-
-                    const { xrp, dog, why, btc, time, total, sol, non, eth, position } = item;
-                    userData.push({ xrp, dog, why, btc, time, total, sol, non, eth, position});
-                }
-            });
-        });
-
-        const remapped = {
-            userId: userid,
-            username: username,
-            why: userData.map(d => d.why),
-            position: userData.map(d => d.position),
-            total: userData.map(d => d.total),
-            colors: color,
-            logo: logo,
-            time: userData.map(d => d.time),
-            non: userData.map(d => d.non),
-            bit: userData.map(d => d.btc),
-            eth: userData.map(d => d.eth),
-            dog: userData.map(d => d.dog),
-            sol: userData.map(d => d.sol),
-            xrp: userData.map(d => d.xrp),
-        };
-
-        datalist.push(remapped);
-    });
-
-    return datalist;
-}
-
-
 export default function Home() {
     const [bot, setbot] = useState("all");
     const [InitData, setInitData] = useState(null);
@@ -106,48 +73,89 @@ export default function Home() {
     const [sender_wallet, setsender_wallet] = useState([]);
 
     const [loading, setLoading] = useState(true);
-    const [lastTime, setlastTime] = useState("");
+    const [lastTime, setLastTime] = useState("");
 
-    // 초기데이터 불러오기
+    const [isCacheExisit, setIscacheExisit] = useState(true);
+    const [socketEnabled, setSocketEnabled] = useState(false);
+    
     useEffect(() => {
         (async () => {
-            try {
-                const { allData, lastTime } = await fetchAllData();
-                setInitData(allData);
-                setlastTime(lastTime)
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
+            const cachedData = await loadUpdate("Chart_data", 1);
+            if (cachedData) {
+                // indexedb 없을 시 초기화 호출
+                if(typeof cachedData.time === "undefined")
+                {
+                    setIscacheExisit(false)
+                    return;
+                }
+
+                const allDates = cachedData.data.map(dayArr => dayArr[0]?.time);
+                const isSequential = allDates.every((date, i) => {
+                    if (i === 0) return true;
+                    const prev = new Date(allDates[i - 1]);
+                    const curr = new Date(date);
+                    const diffDays = (curr - prev) / (1000 * 60 * 60 * 24);
+                    return diffDays === 1;
+                });
+
+                if (!isSequential) {
+                    setIscacheExisit(false);
+                    return;
+                }
+
+                const isVersion = await versionCheck({version : cachedData.time});
+                if (isVersion)
+                {
+                    setIscacheExisit(false)
+                    return;
+                }
+
+                setInitData(cachedData.data);
+                setLastTime(cachedData.time);
+            }
+            else
+            {
+                setIscacheExisit(false)
             }
         })();
     }, []);
 
-    // 초기 데이터 맵핑하기
     useEffect(() => {
-            if (InitData) {
-                const mixed = accumulate(InitData);
-                setMappingData(mixed);
+        if (isCacheExisit === false) {
+            (async () => {
+                try {
+                    await clearStore("Chart_data", 1);
+                    const { allData, cachlastTime } = await LoginfetchAllData();
+                    const insertdata = {  time: cachlastTime, data: allData };
+                    const result = await saveUpdate("Chart_data", 1, insertdata);
+                    
+                    if(result)
+                    {                        
+                        setInitData(allData);
+                        setLastTime(cachlastTime);
+                        return;
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+            })();
+        }
+    }, [isCacheExisit]);
+
+    useEffect(() => {
+        if (InitData) {
+            try{
                 setLiveData(InitData);
             }
-    }, [InitData]);
-    
-
-    const socket_data = useSocketData({lastTime});
-
-    // 초기 데이터에 추가 데이터 합치기
-    useEffect(() => {
-        if (LiveData) {
-            const re_data = [...LiveData, socket_data];  // 새 배열 생성
-            setLiveData(re_data);
+            catch(err){
+                console.error(err);
+            }
         }
-    }, [socket_data]);
+    }, [InitData]);
 
-    // 재 맵핑하기
     useEffect(() => {
             if (LiveData) {
-                const mixed = accumulate(LiveData);
-                setMappingData(mixed)
+                setMappingData(LiveData)
             }
     }, [LiveData]);
 
@@ -156,11 +164,58 @@ export default function Home() {
     {
         if(MappingData) {
             const mapping_result = MappingData?.map(item => data_split(item));
-            setsender_chart(mapping_result?.map(item => item.sender_chart));
-            setsender_analyze(mapping_result?.map(item => item.sender_analyze));
-            setsender_wallet(mapping_result?.map(item => item.sender_wallet));
+
+            if(mapping_result)
+            {
+                setsender_chart(mapping_result?.map(item => item.sender_chart));
+                setsender_analyze(mapping_result?.map(item => item.sender_analyze));
+                setsender_wallet(mapping_result?.map(item => item.sender_wallet));
+                
+            }
+            const timer = setTimeout(() => {
+                setLoading(false);
+            }, 2000);
+            return () => clearTimeout(timer);
         }
+
     }, [MappingData])
+
+    // useEffect(()=>
+    // {
+    //     if(sender_chart)
+    //     {
+    //         setSocketEnabled(true);
+    //     }
+    // },[sender_chart])
+
+    // const { socket_data, socketlasttime } = useSocketData({ lastTime, enabled: socketEnabled });
+
+    // // 초기 데이터에 추가 데이터 합치기
+    // useEffect(() => {
+    //     if (LiveData) {
+    //         const re_data = [...LiveData, socket_data];
+    //         setLiveData(re_data);
+    //     }
+    // }, [socket_data]);
+
+    // useEffect(() => {
+    //     if (socketlasttime){
+    //         (async () => {
+    //             try {
+    //                 await clearStore("Chart_data", 1);
+                    
+    //                 const insertdata = {
+    //                     time: socketlasttime,
+    //                     data: LiveData
+    //                 };
+
+    //                 await saveUpdate("Chart_data", 1, insertdata);
+    //             } catch (err) {
+    //                 console.error("DB 저장 에러:", err);
+    //             }
+    //         })();
+    //     }
+    // }, [socketlasttime]);
 
    return (
     <>

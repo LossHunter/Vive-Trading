@@ -1,0 +1,62 @@
+.tap-model {
+    display: grid;
+    grid-template-rows: auto 1px auto auto;
+    gap:10px;
+    width: 100%;
+    height: auto;
+}
+
+.tap-model .space{
+    border: 1px solid #ccc; 
+}
+
+.model-button,
+.sub-model-button {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    column-gap: 15px;
+    row-gap: 5px;
+}
+
+.model-button button,
+.sub-model-button button {
+    border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    background: rgba(237, 245, 250, 0.3);
+    box-shadow: 0 4px 12px rgba(0.2, 0, 0, 0.2);
+    backdrop-filter: blur(4px);
+    padding: 5px 10px;
+    cursor: pointer;
+
+    width: 200px; 
+    font-weight: bold;
+}
+
+.model-button button{
+    height: 50px;
+}
+.sub-model-button button{
+    height: 50px;
+}
+
+.model-button button.active,
+.sub-model-button button.active {
+    background-color: #007bff;
+    color: inherit;
+}
+
+.model-data {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap : 10px;
+    padding : 15px;
+    box-sizing: border-box;
+}
+
+.wandcart {
+    width: 90%;
+    aspect-ratio: 1/1;
+    padding: 5px;
+    box-sizing: border-box;
+}
