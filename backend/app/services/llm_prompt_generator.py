@@ -520,7 +520,7 @@ class LLMPromptGenerator:
             
             # Intraday series
             intraday = coin_data.get('intraday_series', {})
-            prompt += "**Intraday series (by minute, oldest → latest):**\n\n"
+            prompt += "**Intraday series (by 3-minute, oldest → latest):**\n\n"
             prompt += f"Mid prices: {intraday.get('mid_prices', [])}\n\n"
             prompt += f"EMA indicators (20‑period): {intraday.get('ema_indicators', [])}\n\n"
             prompt += f"MACD indicators: {intraday.get('macd_indicators', [])}\n\n"
@@ -529,7 +529,7 @@ class LLMPromptGenerator:
             
             # Longer-term context
             longer_term = coin_data.get('longer_term_context', {})
-            prompt += "**Longer‑term context (4‑hour timeframe):**\n\n"
+            prompt += "**Longer‑term context (1‑day timeframe):**\n\n"
             prompt += f"20‑Period EMA: {longer_term.get('ema20', 'N/A')} vs. "
             prompt += f"50‑Period EMA: {longer_term.get('ema50', 'N/A')}\n\n"
             prompt += f"3‑Period ATR: {longer_term.get('atr3', 'N/A')} vs. "

@@ -310,10 +310,26 @@ async def collect_historical_minute3_candles():
                             if filtered_candles:
                                 saved_count = storage.save_candles_minute3(filtered_candles, market)
                                 logger.info(f"✅ [과거수집-3분봉] {market}: {saved_count}개 저장 완료 (필터링된 {len(filtered_candles)}개 중)")
+                                
+                                # 3분봉 데이터 수집 후 지표 계산 (최근 120일치)
+                                if saved_count > 0:
+                                    from app.services.indicator_service import calculate_indicators_for_date_range
+                                    indicator_start_date = now_utc - timedelta(days=120)
+                                    logger.info(f"📅 [과거수집-3분봉] {market}: 지표 계산 시작...")
+                                    await calculate_indicators_for_date_range(db, market, indicator_start_date, now_utc)
+                                    logger.info(f"📅 [과거수집-3분봉] {market}: 지표 계산 완료")
                             else:
                                 logger.info(f"✅ [과거수집-3분봉] {market}: 저장할 데이터 없음 (모두 120일 제한 밖이거나 중복)")
+                                # 데이터가 없어도 기존 데이터에 대한 지표 계산은 수행
+                                from app.services.indicator_service import calculate_indicators_for_date_range
+                                indicator_start_date = now_utc - timedelta(days=120)
+                                await calculate_indicators_for_date_range(db, market, indicator_start_date, now_utc)
                         else:
                             logger.warning(f"⚠️ [과거수집-3분봉] {market}: API에서 데이터를 가져올 수 없음")
+                            # 데이터가 없어도 기존 데이터에 대한 지표 계산은 수행
+                            from app.services.indicator_service import calculate_indicators_for_date_range
+                            indicator_start_date = now_utc - timedelta(days=120)
+                            await calculate_indicators_for_date_range(db, market, indicator_start_date, now_utc)
                         
                     except Exception as e:
                         logger.error(f"❌ [과거수집-3분봉] {market} 과거 데이터 수집 오류: {e}", exc_info=True)

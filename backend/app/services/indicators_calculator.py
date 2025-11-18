@@ -368,22 +368,24 @@ class IndicatorsCalculator:
         candle_list = []
         
         for candle in candles:
-            if candle.trade_price is not None:
-                close_price = float(candle.trade_price)
-            else:
-                close_price = 0.0
+            # trade_price가 없으면 해당 캔들을 건너뜀 (잘못된 데이터)
+            if candle.trade_price is None or float(candle.trade_price) == 0.0:
+                logger.warning(f"⚠️ prepare_candle_data_for_indicators: trade_price가 None이거나 0.0인 캔들 발견 (market={candle.market if hasattr(candle, 'market') else 'unknown'}, date={candle.candle_date_time_utc if hasattr(candle, 'candle_date_time_utc') else 'unknown'})")
+                continue
             
-            if candle.high_price is not None:
+            close_price = float(candle.trade_price)
+            
+            if candle.high_price is not None and float(candle.high_price) > 0:
                 high_price = float(candle.high_price)
             else:
                 high_price = close_price
             
-            if candle.low_price is not None:
+            if candle.low_price is not None and float(candle.low_price) > 0:
                 low_price = float(candle.low_price)
             else:
                 low_price = close_price
             
-            if candle.opening_price is not None:
+            if candle.opening_price is not None and float(candle.opening_price) > 0:
                 open_price = float(candle.opening_price)
             else:
                 open_price = close_price
@@ -919,3 +921,161 @@ class IndicatorsCalculator:
             if result:
                 results.append(result)
         return results
+    
+    @staticmethod
+    def calculate_rsi_from_candles(
+        candles: List,
+        period: int,
+        target_date: datetime
+    ) -> Optional[Dict]:
+        """
+        캔들 서브셋으로부터 RSI 계산 (날짜 범위 계산용)
+        
+        Args:
+            candles: 캔들 데이터 리스트
+            period: RSI 계산 기간
+            target_date: 대상 날짜/시각
+        
+        Returns:
+            Dict: RSI 계산 결과 (AU, AD, RS, RSI) 또는 None
+        """
+        try:
+            if len(candles) < period + 1:
+                logger.warning(f"⚠️ RSI 계산: 데이터 부족 ({len(candles)}개 < {period + 1}개 필요)")
+                return None
+            
+            candle_data = RSICalculator.prepare_candle_data_for_rsi(candles)
+            rsi_data = RSICalculator.calculate_rsi(candle_data, period)
+            
+            return rsi_data
+        except Exception as e:
+            logger.warning(f"⚠️ RSI 계산 실패 (period={period}): {e}", exc_info=True)
+            return None
+    
+    @staticmethod
+    def calculate_all_indicators_from_candles(
+        candles: List,
+        target_date: datetime
+    ) -> Optional[Dict]:
+        """
+        캔들 서브셋으로부터 모든 지표 계산 (날짜 범위 계산용)
+        
+        Args:
+            candles: 캔들 데이터 리스트
+            target_date: 대상 날짜/시각
+        
+        Returns:
+            Dict: 계산된 모든 지표 데이터 또는 None
+        """
+        try:
+            if len(candles) < 50:
+                logger.warning(f"⚠️ 지표 계산: 데이터 부족 ({len(candles)}개 < 50개 필요)")
+                return None
+            
+            # 캔들 데이터 변환
+            data = IndicatorsCalculator.prepare_candle_data_for_indicators(candles)
+            prices = data['prices']
+            candle_list = data['candles']
+            
+            # 가격 데이터 검증
+            if not prices or len(prices) == 0:
+                logger.warning(f"⚠️ 지표 계산: 가격 데이터 없음")
+                return None
+            
+            # 0.0 가격이 있는지 확인 (잘못된 데이터)
+            if any(p == 0.0 for p in prices):
+                logger.warning(f"⚠️ 지표 계산: 0.0 가격이 포함된 잘못된 데이터 감지")
+                return None
+            
+            indicators = {}
+            
+            # EMA 계산
+            for period in [12, 20, 26, 50]:
+                try:
+                    if len(prices) >= period:
+                        indicators[f'ema{period}'] = EMACalculator.calculate_ema(prices, period)
+                    else:
+                        logger.warning(f"⚠️ EMA({period}) 계산: 데이터 부족 ({len(prices)}개 < {period}개 필요)")
+                        indicators[f'ema{period}'] = None
+                except Exception as e:
+                    logger.warning(f"⚠️ EMA({period}) 계산 실패: {e}")
+                    indicators[f'ema{period}'] = None
+            
+            # MACD 계산
+            try:
+                if len(prices) >= 35:  # MACD는 최소 35개 필요 (26+9)
+                    macd_data = MACDCalculator.calculate_macd(prices, 12, 26, 9)
+                    indicators['macd'] = macd_data['macd']
+                    indicators['macd_signal'] = macd_data['signal']
+                    indicators['macd_hist'] = macd_data['histogram']
+                else:
+                    logger.warning(f"⚠️ MACD 계산: 데이터 부족 ({len(prices)}개 < 35개 필요)")
+                    indicators['macd'] = None
+                    indicators['macd_signal'] = None
+                    indicators['macd_hist'] = None
+            except Exception as e:
+                logger.warning(f"⚠️ MACD 계산 실패: {e}")
+                indicators['macd'] = None
+                indicators['macd_signal'] = None
+                indicators['macd_hist'] = None
+            
+            # RSI 계산
+            rsi7_data = None
+            candle_data = RSICalculator.prepare_candle_data_for_rsi(candles)
+            
+            for period in [14, 7]:
+                try:
+                    if len(candles) >= period + 1:
+                        rsi_data = RSICalculator.calculate_rsi(candle_data, period)
+                        indicators[f'rsi{period}'] = float(rsi_data['RSI'])
+                        if period == 7:
+                            rsi7_data = rsi_data
+                    else:
+                        logger.warning(f"⚠️ RSI({period}) 계산: 데이터 부족 ({len(candles)}개 < {period + 1}개 필요)")
+                        indicators[f'rsi{period}'] = None
+                        if period == 7:
+                            rsi7_data = None
+                except Exception as e:
+                    logger.warning(f"⚠️ RSI({period}) 계산 실패: {e}")
+                    indicators[f'rsi{period}'] = None
+                    if period == 7:
+                        rsi7_data = None
+            
+            # ATR 계산
+            for period in [14, 3]:
+                try:
+                    if len(candle_list) >= period + 1:
+                        indicators[f'atr{period}'] = ATRCalculator.calculate_atr(candle_list, period)
+                    else:
+                        logger.warning(f"⚠️ ATR({period}) 계산: 데이터 부족 ({len(candle_list)}개 < {period + 1}개 필요)")
+                        indicators[f'atr{period}'] = None
+                except Exception as e:
+                    logger.warning(f"⚠️ ATR({period}) 계산 실패: {e}")
+                    indicators[f'atr{period}'] = None
+            
+            # Bollinger Bands 계산
+            try:
+                if len(prices) >= 20:
+                    bb_data = BollingerBandsCalculator.calculate_bollinger_bands(prices, 20, 2.0)
+                    indicators['bb_upper'] = bb_data['upper']
+                    indicators['bb_middle'] = bb_data['middle']
+                    indicators['bb_lower'] = bb_data['lower']
+                else:
+                    logger.warning(f"⚠️ Bollinger Bands 계산: 데이터 부족 ({len(prices)}개 < 20개 필요)")
+                    indicators['bb_upper'] = None
+                    indicators['bb_middle'] = None
+                    indicators['bb_lower'] = None
+            except Exception as e:
+                logger.warning(f"⚠️ Bollinger Bands 계산 실패: {e}")
+                indicators['bb_upper'] = None
+                indicators['bb_middle'] = None
+                indicators['bb_lower'] = None
+            
+            # RSI(7) 데이터 포함
+            indicators['_rsi7_data'] = rsi7_data
+            
+            return indicators
+        
+        except Exception as e:
+            logger.error(f"❌ 지표 계산 오류: {e}", exc_info=True)
+            return None
