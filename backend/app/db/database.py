@@ -169,7 +169,7 @@ class UpbitAccounts(Base):
     __tablename__ = "upbit_accounts"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
-    account_id = Column(UUID(as_uuid=False), comment="계정 식별자 (accounts 테이블 FK 가능)")  # UUID 타입 (문자열로 저장/조회)
+    account_id = Column(UUID(as_uuid=True), comment="계정 식별자 (accounts 테이블 FK 가능)")  # UUID 타입으로 변경
     currency = Column(Text, nullable=False, comment="보유 자산 화폐 코드 (예: BTC, KRW)")
     balance = Column(Numeric(30, 10), comment="주문 가능 잔고 수량")
     locked = Column(Numeric(30, 10), comment="거래/주문 등에 묶여있는 잔고 수량")
@@ -294,7 +294,7 @@ class TradingSession(Base):
     __tablename__ = "trading_sessions"
     
     id = Column(Integer, primary_key=True, index=True)
-    account_id = Column(UUID(as_uuid=False), unique=True, nullable=False, comment="계정 식별자")
+    account_id = Column(UUID(as_uuid=True), unique=True, nullable=False, comment="계정 식별자")
     start_time = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="거래 시작 시각 (UTC)")
     is_active = Column(Boolean, default=True, nullable=False, comment="세션 활성화 여부")
 
