@@ -333,8 +333,25 @@ class TradingSimulator:
                 return False
             logger.info(f"✅ account_id 확인: {signal.account_id}")
             
-            # 2. 현재 가격 조회
-            logger.info(f"[2단계] {signal.coin} 현재 가격 조회 중...")
+            # 2. 신호 타입 확인 (HOLD는 quantity 검증 전에 처리)
+            logger.info("[2단계] 신호 타입 확인 중...")
+            signal_type = signal.signal.lower()
+            logger.info(f"  원본 신호: {signal.signal}")
+            logger.info(f"  소문자 변환: {signal_type}")
+            
+            # HOLD 신호는 거래하지 않음 (quantity 검증 없이 바로 skipped 처리)
+            if "hold" in signal_type:
+                logger.info(f"📊 HOLD 신호 감지: {signal.coin}")
+                logger.info("  → 거래를 실행하지 않습니다. (quantity 검증 생략)")
+                self._save_execution_record(
+                    **execution_record,
+                    execution_status="skipped",
+                    failure_reason="HOLD 신호"
+                )
+                return True
+            
+            # 3. 현재 가격 조회 (HOLD가 아닌 경우만)
+            logger.info(f"[3단계] {signal.coin} 현재 가격 조회 중...")
             current_price = self.get_current_price(signal.coin)
             if not current_price:
                 logger.error(f"❌ {signal.coin} 가격 조회 실패! upbit_ticker 테이블 확인 필요")
@@ -348,7 +365,7 @@ class TradingSimulator:
 
             execution_record["executed_price"] = current_price
             
-           # 4. quantity 검증 (필수!)
+            # 4. quantity 검증 (HOLD가 아닌 경우만 필수)
             logger.info("[4단계] quantity 검증 중...")
             logger.info(f"  signal.quantity 값: {signal.quantity}")
             logger.info(f"  signal.quantity 타입: {type(signal.quantity)}")
@@ -378,25 +395,11 @@ class TradingSimulator:
             logger.info(f"✅ quantity 유효: {quantity_decimal}")
             execution_record["intended_quantity"] = signal.quantity
             
-            # 5. 신호 타입에 따라 처리
+            # 5. 신호 타입에 따라 처리 (BUY/SELL)
             logger.info("[5단계] 신호 타입 처리 중...")
-            signal_type = signal.signal.lower()
-            logger.info(f"  원본 신호: {signal.signal}")
-            logger.info(f"  소문자 변환: {signal_type}")
-            
-            # HOLD 신호는 거래하지 않음 (성공으로 기록)
-            if "hold" in signal_type:
-                logger.info(f"📊 HOLD 신호 감지: {signal.coin} @ {current_price:,.2f} KRW")
-                logger.info("  → 거래를 실행하지 않습니다.")
-                self._save_execution_record(
-                    **execution_record,
-                    execution_status="skipped",
-                    failure_reason="HOLD 신호"
-                )
-                return True
             
             # BUY_TO_ENTER: 매수 진입
-            elif "buy_to_enter" == signal_type or "buy" in signal_type or "enter" in signal_type:
+            if "buy_to_enter" == signal_type or "buy" in signal_type or "enter" in signal_type:
                 logger.info("🟢 매수 신호 감지 - 매수 프로세스 시작")
                 return self._execute_buy_signal(signal, current_price, execution_record)
             
