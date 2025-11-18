@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     VLLM_API_KEY: str = ""
     UPBIT_ACCESS_KEY: str
     UPBIT_SECRET_KEY: str
-    VLLM_DEFAULT_MODEL: str = "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8"
+    VLLM_DEFAULT_MODEL: str = "openai/gpt-oss-120b"
 
     # Chroma DB 인증 정보 (필요한 경우). 환경 변수에서 읽어옵니다.
     CHROMA_AUTH_CREDENTIALS: str = "your_secure_password" # Docker Compose에서 설정한 비밀번호와 일치해야 합니다.
