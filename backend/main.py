@@ -94,6 +94,15 @@ async def lifespan(app: FastAPI):
         except Exception as init_error:
             logger.warning(f"⚠️ 계좌 초기화 중 오류 (계속 진행): {init_error}")
 
+        # RAG 데이터 초기화 (백그라운드 스레드에서 실행)
+        logger.info("▶️ 백그라운드 태스크 시작: RAG 데이터 초기화")
+        try:
+            init_thread = threading.Thread(target=initialize_rag_data)
+            init_thread.daemon = True
+            init_thread.start()
+        except Exception as e:
+            logger.error(f"❌ RAG 데이터 초기화 스레드 시작 실패: {str(e)}")
+
 
     except Exception:
         # exception()을 사용해 스택 트레이스 남김 -> 어떤줄에서 오류났는지)
@@ -180,21 +189,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ==================== RAG 함수 ====================
-@app.on_event("startup")
-async def startup_event():
-    """
-    애플리케이션 시작 시 RAG 데이터 로딩을 백그라운드에서 수행합니다.
-    """
-    logger.info("Application startup: Starting RAG data initialization in a background thread.")
-    try:
-        init_thread = threading.Thread(target=initialize_rag_data)
-        init_thread.daemon = True  # 메인 스레드 종료 시 함께 종료되도록 설정
-        init_thread.start()
-    except Exception as e:
-        logger.error(f"Failed to start RAG data initialization thread: {str(e)}")
-
 
 # 메인 API 라우터 생성
 api_router = APIRouter()
