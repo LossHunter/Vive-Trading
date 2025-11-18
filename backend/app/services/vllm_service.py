@@ -144,12 +144,13 @@ async def get_trade_decision(
     vLLM 서버에 트레이딩 결정 요청 -> 결과를 DB에 저장하는 함수
 
     Args:
-        model_name: 사용할 모델 이름 (미지정 시 기본값 사용)
+        model_name: 사용할 모델 이름 (미지정 시 동적으로 선택)
         extra_context: 추가로 전달할 컨텍스트 또는 사용자 입력
 
     Returns:
         TradeDecision: 검증된 트레이딩 결정 데이터
     """
+    # 사용 가능한 모델을 동적으로 선택
     model = get_preferred_model_name(model_name)
     db = SessionLocal()
     try:
