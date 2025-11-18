@@ -107,7 +107,7 @@ async def collect_candle_data_periodically():
                     # 캔들 데이터가 성공적으로 수집된 경우 기술 지표 계산 트리거
                     if collected_markets:
                         logger.info(f"✅ [3분봉 주기] {len(collected_markets)}개 마켓 수집 완료 (성공: {collected_markets}, 실패: {failed_markets})")
-                        from services.indicator_service import calculate_indicators_after_candle_collection
+                        from app.services.indicator_service import calculate_indicators_after_candle_collection
                         asyncio.create_task(calculate_indicators_after_candle_collection(collected_markets))
                     else:
                         logger.debug(f"⏭️ [3분봉 주기] 수집된 데이터 없음 (모두 중복 또는 실패)")

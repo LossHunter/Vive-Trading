@@ -11,13 +11,13 @@ load_dotenv(dotenv_path=env_path)
 
 class Settings(BaseSettings):
     # vLLM 서버의 base URL. 환경 변수에서 읽어옵니다.
-    # 예: VLLM_BASE_URL="https://unmummied-keshia-feelingly.ngrok-free.dev/v1"
-    VLLM_BASE_URL: str = "https://unmummied-keshia-feelingly.ngrok-free.dev/v1"
+    VLLM_BASE_URL: str = "https://unmummied-keshia-feelingly.ngrok-free.dev/v1" # 디폴트
     
     # vLLM API 키 (필요한 경우). 현재는 비워둡니다.
     VLLM_API_KEY: str = ""
     UPBIT_ACCESS_KEY: str
     UPBIT_SECRET_KEY: str
+    VLLM_DEFAULT_MODEL: str = "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8"
 
     # Chroma DB 인증 정보 (필요한 경우). 환경 변수에서 읽어옵니다.
     CHROMA_AUTH_CREDENTIALS: str = "your_secure_password" # Docker Compose에서 설정한 비밀번호와 일치해야 합니다.
@@ -190,6 +190,64 @@ class LLMPromptConfig:
     ENABLE_PROMPT_GENERATION: bool = True
 
 
+class LLMAccountConfig:
+    """LLM 모델별 account_id 매핑 설정 클래스"""
+    
+    # 모델명과 account_id suffix 매핑
+    MODEL_ACCOUNT_SUFFIX_MAP: dict = {
+        "google/gemma-3-27b-it": "1",
+        "openai/gpt-oss-120b": "2",
+        "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8": "3",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": "4",
+    }
+    
+    @classmethod
+    def get_account_id_for_model(cls, model_name: str) -> str:
+        """
+        모델명에 해당하는 UUID 형식의 account_id 반환
+        
+        Args:
+            model_name: LLM 모델명
+        
+        Returns:
+            str: UUID 형식의 account_id (예: "00000000-0000-0000-0000-000000000001")
+        
+        Raises:
+            ValueError: 모델명이 매핑에 없는 경우
+        """
+        suffix = cls.MODEL_ACCOUNT_SUFFIX_MAP.get(model_name)
+        if suffix is None:
+            raise ValueError(f"모델 '{model_name}'에 대한 account_id 매핑을 찾을 수 없습니다.")
+        
+        # suffix를 12자리로 패딩 (앞을 0으로 채움)
+        padded_suffix = suffix.zfill(12)
+        
+        # UUID 형식으로 변환: 00000000-0000-0000-0000-000000000001
+        return f"00000000-0000-0000-0000-{padded_suffix}"
+    
+    @classmethod
+    def get_model_for_account_id(cls, account_id: str) -> Optional[str]:
+        """
+        account_id에 해당하는 모델명 반환 (역방향 조회)
+        
+        Args:
+            account_id: UUID 형식의 account_id
+        
+        Returns:
+            str | None: 모델명, 찾지 못하면 None
+        """
+        # UUID에서 마지막 12자리 추출
+        suffix = account_id.split("-")[-1].lstrip("0") or "0"
+        
+        # suffix로 모델 찾기
+        for model_name, model_suffix in cls.MODEL_ACCOUNT_SUFFIX_MAP.items():
+            if model_suffix == suffix:
+                return model_name
+        
+        return None
+    
+
+    
 class ScriptConfig:
     """스크립트 및 API 테스트용 설정 클래스"""
     
@@ -209,3 +267,21 @@ class ScriptConfig:
         "KRW-SOL",
         "KRW-XRP",
     ]
+
+# ============================================================================
+# [임시 테스트용] 주문 체결 기능 설정
+# ============================================================================
+# 이 섹션은 임시 테스트용 주문 체결 기능을 제어합니다.
+# 나중에 실제 외부 시스템으로 교체할 때 이 기능을 비활성화하거나 제거할 수 있습니다.
+# ============================================================================
+class OrderExecutionConfig:
+    """주문 체결 기능 설정 클래스 (임시 테스트용)"""
+    
+    # 주문 체결 기능 활성화 여부
+    # False로 설정하면 주문 체결 API가 비활성화됩니다.
+    ENABLE_ORDER_EXECUTION: bool = os.getenv("ENABLE_ORDER_EXECUTION", "True").lower() == "true"
+    
+    # 주문 체결 로깅 레벨
+    # "INFO": 일반 정보만 로깅
+    # "DEBUG": 상세 디버그 정보 포함
+    ORDER_EXECUTION_LOG_LEVEL: str = os.getenv("ORDER_EXECUTION_LOG_LEVEL", "INFO")

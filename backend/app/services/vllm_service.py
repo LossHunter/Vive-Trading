@@ -7,10 +7,15 @@ from typing import Any, Dict, Optional
 from openai import OpenAI
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
-from app.db.database import LLMTradingSignal, SessionLocal
+from uuid import UUID
+from app.core.config import settings, LLMAccountConfig
+from sqlalchemy import desc, cast, Text
+
+from app.db.database import LLMTradingSignal, SessionLocal, UpbitAccounts
 from app.schemas.llm import TradeDecision
 from app.services.llm_prompt_generator import LLMPromptGenerator
+from app.services.vllm_model_registry import get_preferred_model_name
+from app.services.trading_simulator import TradingSimulator
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +27,15 @@ client = OpenAI(
 )
 
 
-DEFAULT_MODEL_NAME = "openai/gpt-oss-120b" # get_trade_decision() 콜을 외부에서 모델 이름 없이 부를 경우 대비한 기본값
+# DEFAULT_MODEL_NAME = "openai/gpt-oss-120b" # config.py에 기재
 TRADE_DECISION_LOOP_INTERVAL = 60  # 초 단위
 
+MODEL_ACCOUNT_SUFFIX_MAP = {
+    "google/gemma-3-27b-it": "1",
+    "openai/gpt-oss-120b": "2",
+    "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8": "3",
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": "4",
+}
 
 def _build_system_message() -> str:
     """
@@ -63,12 +74,50 @@ def _to_decimal(value: Any) -> Decimal:
     return Decimal(str(value)) if value is not None else Decimal("0")
 
 
-def _save_trading_signal(db: Session, prompt_id: int, decision: TradeDecision) -> LLMTradingSignal:
+def _resolve_account_id(
+    db: Session,
+    model_name: str,
+    decision: TradeDecision
+) -> Optional[UUID]:
+    """
+    모델명을 account_id로 변환
+    
+    Args:
+        db: 데이터베이스 세션 (확장 가능성을 위해 유지)
+        model_name: 사용된 LLM 모델명
+        decision: 트레이딩 결정 데이터 (확장 가능성을 위해 유지)
+    
+    Returns:
+        UUID | None: 변환된 account_id, 실패 시 None
+    """
+    try:
+        account_id_str = LLMAccountConfig.get_account_id_for_model(model_name)
+        return UUID(account_id_str)
+    except ValueError as e:
+        logger.warning(f"⚠️ 모델 '{model_name}'의 account_id 변환 실패: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"❌ account_id 변환 중 예외 발생: {e}")
+        return None
+
+
+
+def _save_trading_signal(db: Session, prompt_id: int, decision: TradeDecision, account_id: Optional[UUID] = None) -> LLMTradingSignal:
     """
     LLM 응답을 llm_trading_signal 테이블에 저장
+    
+    Args:
+        db: 데이터베이스 세션
+        prompt_id: 프롬프트 ID
+        decision: 트레이딩 결정 데이터
+        account_id: 계정 ID (LLM 모델별 매핑)
+    
+    Returns:
+        LLMTradingSignal: 저장된 거래 신호 객체
     """
     signal = LLMTradingSignal(
         prompt_id=prompt_id,
+        account_id=account_id,
         coin=decision.coin.upper(),
         signal=decision.signal,
         stop_loss=_to_decimal(decision.stop_loss),
@@ -101,7 +150,7 @@ async def get_trade_decision(
     Returns:
         TradeDecision: 검증된 트레이딩 결정 데이터
     """
-    model = model_name or DEFAULT_MODEL_NAME
+    model = get_preferred_model_name(model_name)
     db = SessionLocal()
     try:
         generator = LLMPromptGenerator(db)
@@ -139,10 +188,45 @@ async def get_trade_decision(
         decision_data = json.loads(json_part)
         validated_decision = TradeDecision(**decision_data)
 
-        _save_trading_signal(db, prompt_data.id, validated_decision) # DB에 저장
-        logger.info("✅ LLM 거래 신호 저장 완료 (prompt_id=%s, coin=%s)", prompt_data.id, validated_decision.coin)
+        account_id = _resolve_account_id(db, model, validated_decision)
 
+        # DB에 저장 (account_id 포함)
+        saved_signal = _save_trading_signal(db, prompt_data.id, validated_decision, account_id)
+
+        logger.info(
+            "✅ LLM 거래 신호 저장 완료 (prompt_id=%s, coin=%s, model=%s, account_id=%s)",
+            prompt_data.id,
+            validated_decision.coin,
+            model,
+            account_id,
+        )
+
+       # 거래 시뮬레이션 실행
+        if account_id:
+            try:
+                simulator = TradingSimulator(db)
+                
+                # 계좌가 초기화되어 있는지 확인 (없으면 초기화)
+                simulator.initialize_account(account_id)
+                
+                # LLM이 판단한 시점의 가격 조회 (intended_price)
+                intended_price = simulator.get_current_price(validated_decision.coin)
+                
+                # 거래 실행 (슬리피지 체크 포함)
+                trade_success = simulator.execute_trade_signal(saved_signal, intended_price)
+                
+                if trade_success:
+                    logger.info(f"✅ 거래 실행 완료 (signal_id={saved_signal.id}, coin={validated_decision.coin})")
+                else:
+                    logger.warning(f"⚠️ 거래 실행 실패 (signal_id={saved_signal.id})")
+                    
+            except Exception as e:
+                logger.error(f"❌ 거래 실행 중 오류: {e}")
+                # 거래 실행 실패해도 신호는 저장되었으므로 계속 진행
+                
         return validated_decision
+    
+    
     except json.JSONDecodeError as exc:
         logger.error("❌ LLM JSON 파싱 실패: %s", exc)
         logger.debug("LLM raw output: %s", raw_content)
@@ -166,7 +250,8 @@ async def run_trade_decision_loop(
     logger.info("🚀 LLM 거래 신호 루프 시작 (interval=%s초)", interval_seconds)
     while True:
         try:
-            await get_trade_decision(model_name=model_name, extra_context=None)
+            resolved_model = get_preferred_model_name(model_name)
+            await get_trade_decision(model_name=resolved_model, extra_context=None)
         except Exception as exc:
             logger.error("⚠️ LLM 거래 신호 생성 실패: %s", exc)
         await asyncio.sleep(interval_seconds)
