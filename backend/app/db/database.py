@@ -4,6 +4,7 @@ PostgreSQL 데이터베이스와의 연결을 관리하고, SQLAlchemy를 사용
 """
 
 from sqlalchemy import create_engine, Column, BigInteger, Text, Numeric, Integer, Boolean, DateTime, JSON, text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.sql import func
@@ -16,6 +17,31 @@ from app.core.config import DatabaseConfig
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Export list
+__all__ = [
+    # Database models
+    "UpbitMarkets",
+    "UpbitTicker",
+    "UpbitCandlesMinute3",
+    "UpbitDayCandles",
+    "UpbitTrades",
+    "UpbitOrderbook",
+    "UpbitAccounts",
+    "UpbitRSI",
+    "UpbitIndicators",
+    "LLMPromptData",
+    "LLMTradingSignal",
+    "LLMTradingExecution",
+    # Database utilities
+    "Base",
+    "engine",
+    "SessionLocal",
+    "get_db",
+    "init_db",
+    "test_connection",
+]
+
 
 # SQLAlchemy Base 클래스 생성 (모든 모델이 상속받을 기본 클래스)
 Base = declarative_base()
@@ -142,7 +168,7 @@ class UpbitAccounts(Base):
     __tablename__ = "upbit_accounts"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
-    account_id = Column(Text, comment="계정 식별자 (accounts 테이블 FK 가능)")
+    account_id = Column(UUID(as_uuid=False), comment="계정 식별자 (accounts 테이블 FK 가능)")  # UUID 타입 (문자열로 저장/조회)
     currency = Column(Text, nullable=False, comment="보유 자산 화폐 코드 (예: BTC, KRW)")
     balance = Column(Numeric(30, 10), comment="주문 가능 잔고 수량")
     locked = Column(Numeric(30, 10), comment="거래/주문 등에 묶여있는 잔고 수량")
@@ -212,6 +238,7 @@ class LLMTradingSignal(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
     prompt_id = Column(BigInteger, nullable=False, comment="프롬프트 ID (llm_prompt_data FK)")
+    account_id = Column(UUID(as_uuid=False), comment="계정 식별자")
     coin = Column(Text, nullable=False, comment="코인 심볼 (예: BTC, ETH)")
     signal = Column(Text, nullable=False, comment="거래 신호 (예: buy_to_enter, sell_to_exit, hold)")
     stop_loss = Column(Numeric(20, 8), comment="손절가")
@@ -223,6 +250,43 @@ class LLMTradingSignal(Base):
     invalidation_condition = Column(Text, comment="무효화 조건 설명")
     justification = Column(Text, comment="거래 근거 설명")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="신호 생성 시각 (UTC)")
+
+class LLMTradingExecution(Base):
+    """LLM 거래 실행 기록 테이블"""
+    __tablename__ = "llm_trading_execution"
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
+    signal_id = Column(BigInteger, nullable=False, comment="거래 신호 ID (llm_trading_signal FK)")
+    account_id = Column(UUID(as_uuid=True), nullable=True, comment="계정 ID")
+    coin = Column(Text, nullable=False, comment="코인 심볼")
+    signal_type = Column(Text, nullable=False, comment="신호 타입 (buy_to_enter, sell_to_exit, hold)")
+    
+    # 실행 정보
+    execution_status = Column(Text, nullable=False, comment="실행 상태 (success, failed, skipped)")
+    failure_reason = Column(Text, comment="실패 사유")
+    
+    # 가격 정보
+    intended_price = Column(Numeric(20, 8), comment="LLM이 판단한 가격 (신호 생성 시각)")
+    executed_price = Column(Numeric(20, 8), comment="실제 체결 가격 (실행 시각)")
+    price_slippage = Column(Numeric(10, 4), comment="슬리피지 (%) = (executed - intended) / intended * 100")
+    
+    # 수량 정보
+    intended_quantity = Column(Numeric(30, 10), comment="의도한 수량")
+    executed_quantity = Column(Numeric(30, 10), comment="실제 체결 수량")
+    
+    # 잔액 정보
+    balance_before = Column(Numeric(30, 10), comment="거래 전 잔액")
+    balance_after = Column(Numeric(30, 10), comment="거래 후 잔액")
+    
+    # 시각 정보
+    signal_created_at = Column(DateTime(timezone=True), comment="신호 생성 시각")
+    executed_at = Column(DateTime(timezone=True), server_default=func.now(), comment="실행 시각")
+    time_delay = Column(Numeric(10, 3), comment="실행 지연 시간 (초)")
+    
+    # 추가 정보
+    profit_target = Column(Numeric(20, 8), comment="목표가")
+    stop_loss = Column(Numeric(20, 8), comment="손절가")
+    notes = Column(Text, comment="비고")
 
 
 # ==================== 데이터베이스 유틸리티 함수 ====================

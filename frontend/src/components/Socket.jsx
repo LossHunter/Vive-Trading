@@ -15,12 +15,22 @@ export function useSocketData({lastTime}) {
   });
 
   useEffect(() => {
-  if (lastMessage?.data) {
-    try {
-      const parsed = JSON.parse(lastMessage.data);
-      const flatParsed = Array.isArray(parsed[0]) ? parsed.flat() : parsed;
+    if (lastMessage?.data) {
+      try {
+        const parsed = JSON.parse(lastMessage.data);
 
-      const mapped = flatParsed.map(item => ({
+        let payload;
+        if (Array.isArray(parsed)) {
+          payload = parsed;
+        } else if (parsed?.type === "wallet" && Array.isArray(parsed.data)) {
+          payload = parsed.data;
+        } else {
+          // 다른 타입의 메시지(예: ping/pong, 연결 알림)는 무시
+          return;
+        }
+
+        const flatParsed = Array.isArray(payload[0]) ? payload.flat() : payload;
+        const mapped = flatParsed.map((item = {}) => ({
         userId: item.userId,
         username: item.username,
         colors: item.colors,

@@ -107,6 +107,7 @@ CREATE TABLE "llm_prompt_data" (
 CREATE TABLE "llm_trading_signal" (
   "id" bigserial PRIMARY KEY,
   "prompt_id" bigint NOT NULL,
+  "account_id" uuid,
   "coin" text NOT NULL,
   "signal" text NOT NULL,
   "stop_loss" numeric(20,8),
@@ -426,6 +427,8 @@ COMMENT ON TABLE "llm_trading_signal" IS 'LLM 거래 신호 응답 테이블';
 COMMENT ON COLUMN "llm_trading_signal"."id" IS '내부 식별자 (자동 증가)';
 
 COMMENT ON COLUMN "llm_trading_signal"."prompt_id" IS '프롬프트 ID (llm_prompt_data FK)';
+
+COMMENT ON COLUMN "llm_trading_signal"."account_id" IS 'LLM이 참조한 Upbit 계정 식별자';
 
 COMMENT ON COLUMN "llm_trading_signal"."coin" IS '코인 심볼 (예: BTC, ETH)';
 
