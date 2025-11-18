@@ -153,6 +153,8 @@ async def get_trade_decision(
     model = get_preferred_model_name(model_name)
     db = SessionLocal()
     try:
+        # 1. account_id를 먼저 정의합니다.
+        account_id = _resolve_account_id(db, model, None)
         if not account_id:
             raise ValueError(f"모델 '{model}'에 대한 유효한 account_id를 찾을 수 없습니다.")
 
@@ -160,27 +162,21 @@ async def get_trade_decision(
         generator = LLMPromptGenerator(db, account_id=account_id)
         
         # 3. 프롬프트 생성 및 저장
-        prompt_data = generator.generate_and_save() # generate_and_save() 호출
+        prompt_data = generator.generate_and_save()
         if not prompt_data:
             raise ValueError("프롬프트 데이터를 생성하지 못했습니다.")
 
         db.refresh(prompt_data)
 
-        system_content = _build_system_message() # 응답형태 지정
+        system_content = _build_system_message()
         user_payload = _build_user_payload(prompt_data, extra_context)
         user_content = json.dumps(user_payload, ensure_ascii=False)
 
         completion = client.chat.completions.create(
-            model=model, # 전달받은 모델 이름 사용
+            model=model,
             messages=[
-                {
-                    "role": "system",
-                    "content": system_content,
-                },
-                {
-                    "role": "user",
-                    "content": user_content,
-                },
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content},
             ],
             temperature=0.0,
             response_format={"type": "json_object"},
@@ -189,14 +185,12 @@ async def get_trade_decision(
         raw_content = completion.choices[0].message.content or ""
         json_part = raw_content
         if "</thinking>" in raw_content:
-            json_part = raw_content.split("</thinking>")[-1].strip() # llm이 생성한 <thinking>...</thinking> 부분 제거하고 남은 JSON 부분만 추출
+            json_part = raw_content.split("</thinking>")[-1].strip()
 
         decision_data = json.loads(json_part)
         validated_decision = TradeDecision(**decision_data)
 
-        account_id = _resolve_account_id(db, model, validated_decision)
-
-        # DB에 저장 (account_id 포함)
+        # DB에 저장 (이미 정의된 account_id 사용)
         saved_signal = _save_trading_signal(db, prompt_data.id, validated_decision, account_id)
 
         logger.info(
