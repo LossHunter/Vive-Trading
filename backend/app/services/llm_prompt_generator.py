@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
+from app.core.config import IndicatorsConfig, LLMPromptConfig, UpbitAPIConfig # UpbitAPIConfig 추가
 from app.db.database import (
     UpbitTicker, UpbitCandlesMinute3, UpbitDayCandles,
     UpbitIndicators, UpbitRSI, UpbitAccounts, LLMPromptData, SessionLocal, TradingSession # TradingSession 추가
