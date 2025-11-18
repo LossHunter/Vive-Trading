@@ -270,8 +270,6 @@ class TradingSession(Base):
 # ==================== 데이터베이스 유틸리티 함수 ====================
 
 def get_db() -> Session:
-
-def get_db() -> Session:
     """
     데이터베이스 세션 생성 함수 (의존성 주입용)
     FastAPI의 Depends()에서 사용하여 각 요청마다 새로운 DB 세션을 제공합니다.
