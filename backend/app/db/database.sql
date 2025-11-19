@@ -110,6 +110,7 @@ CREATE TABLE "llm_trading_signal" (
   "account_id" uuid,
   "coin" text NOT NULL,
   "signal" text NOT NULL,
+  "current_price" numeric(20,8),
   "stop_loss" numeric(20,8),
   "profit_target" numeric(20,8),
   "quantity" numeric(30,10),
@@ -522,3 +523,8 @@ COMMENT ON COLUMN "llm_trading_execution"."profit_target" IS '목표가';
 COMMENT ON COLUMN "llm_trading_execution"."stop_loss" IS '손절가';
 
 COMMENT ON COLUMN "llm_trading_execution"."notes" IS '비고';
+
+COMMENT ON COLUMN "llm_trading_signal"."current_price" IS '신호 생성 시점의 현재가';
+
+ALTER TABLE "llm_trading_signal" 
+ADD COLUMN "current_price" numeric(20,8) COMMENT '신호 생성 시점의 현재가';

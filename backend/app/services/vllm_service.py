@@ -11,11 +11,12 @@ from uuid import UUID
 from app.core.config import settings, LLMAccountConfig
 from sqlalchemy import desc, cast, Text
 
-from app.db.database import LLMTradingSignal, SessionLocal, UpbitAccounts
+from app.db.database import LLMTradingSignal, SessionLocal, UpbitAccounts,UpbitTicker
 from app.schemas.llm import TradeDecision
 from app.services.llm_prompt_generator import LLMPromptGenerator
 from app.services.vllm_model_registry import get_preferred_model_name
 from app.services.trading_simulator import TradingSimulator
+from sqlalchemy import desc 
 
 logger = logging.getLogger(__name__)
 
@@ -129,11 +130,30 @@ def _save_trading_signal(db: Session, prompt_id: int, decision: TradeDecision, a
     Returns:
         LLMTradingSignal: 저장된 거래 신호 객체
     """
+    # 현재가 조회
+    current_price = None
+    coin_upper = decision.coin.upper()
+    market = f"KRW-{coin_upper}"
+    
+    try:
+        ticker = db.query(UpbitTicker).filter(
+            UpbitTicker.market == market
+        ).order_by(desc(UpbitTicker.collected_at)).first()
+        
+        if ticker and ticker.trade_price:
+            current_price = _to_decimal(ticker.trade_price)
+            logger.debug(f"✅ {market} 현재가 조회 성공: {current_price}")
+        else:
+            logger.warning(f"⚠️ {market} 현재가 조회 실패: 티커 데이터 없음")
+    except Exception as e:
+        logger.error(f"❌ {market} 현재가 조회 중 오류 발생: {e}")
+    
     signal = LLMTradingSignal(
         prompt_id=prompt_id,
         account_id=account_id,
-        coin=decision.coin.upper(),
+        coin=coin_upper,
         signal=decision.signal,
+        current_price=current_price,  # 🔍 추가
         stop_loss=_to_decimal(decision.stop_loss),
         profit_target=_to_decimal(decision.profit_target),
         quantity=_to_decimal(decision.quantity),
@@ -148,7 +168,6 @@ def _save_trading_signal(db: Session, prompt_id: int, decision: TradeDecision, a
     db.commit() # 실제 DB에 저장
     db.refresh(signal) # DB에서 최신 값(자동증가 id 포함) 다시 가져오기
     return signal
-
 
 async def get_trade_decision(
     model_name: Optional[str] = None,

@@ -95,7 +95,7 @@ async def collect_candle_data_periodically():
                     for market in UpbitAPIConfig.MAIN_MARKETS:
                         try:
                             logger.debug(f"🔍 [3분봉 주기] {market} 데이터 수집 시작")
-                            candles = await collector.get_candles_minute3(market, count=1)
+                            candles = await collector.get_candles_minute3(market, count=3)
                             
                             if candles:
                                 saved_count = storage.save_candles_minute3(candles, market)
