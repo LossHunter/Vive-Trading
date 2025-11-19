@@ -117,11 +117,7 @@
     box-sizing: border-box; /* border 포함해서 width 100% */
 }
 
-.bot-position * {
-    box-sizing: border-box; /* 모든 자식 요소 포함 */
-}
-
-.position, .why, .time {
+.usemodel, .position, .why, .time {
     width: 100%;
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(8px);
@@ -134,7 +130,7 @@
     transition: transform 0.2s;
     min-width: 0; /* flex 내부 여백 문제 해결 */
 }
-.position p, .why p, .time p {
+.usemodel p, .position p, .why p, .time p {
     color: inherit;
     font-weight: bold;
     font-size: 15px;

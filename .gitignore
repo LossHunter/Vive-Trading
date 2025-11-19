@@ -16,6 +16,8 @@ env/
 backend/.env
 venv/
 .venv/
+.env
+.env *
 
 # IDEs
 .idea/
