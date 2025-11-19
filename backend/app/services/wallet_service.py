@@ -290,7 +290,6 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
     
     return wallet_data
 
-
 async def get_wallet_data_list_other(db: Session) -> List[Dict]:
     """
     각 유저별 30일치 지갑 데이터를 평탄화된 형태로 생성

@@ -289,6 +289,27 @@ class LLMTradingExecution(Base):
     notes = Column(Text, comment="비고")
 
 
+
+## AccountInformation 테이블 생성
+
+class AccountInformation(Base):
+    __tablename__ = "account_information"
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 Insert 순서 == 타임 테이블")
+    account_id = Column(Text, comment="계정 식별자") # userid
+    account_name = Column(Text, comment="계정 식별자 이름") # username
+    account_model = Column(Text, comment="계정 식별자 모델") # usermodel
+    account_logo = Column(Text, comment="계정 식별자 로고") # logo
+    account_why = Column(Text, comment="매수, 매도 사유")  # why
+    account_position = Column(Text, nullable=False, comment="보유 자산 화폐 코드 (예: BTC, KRW)") # position
+    account_btc = Column(Numeric(30, 10), comment="현재 보유중인 비트코인 수량") # btc
+    account_eth = Column(Numeric(30, 10), comment="현재 보유중인 이더리움 수량") # eth
+    account_doge = Column(Numeric(30, 10), comment="현재 보유중인 도지 수량") # doge
+    account_sol = Column(Numeric(30, 10), comment="현재 보유중인 솔리움 수량") # sol
+    account_xrp = Column(Numeric(30, 10), comment="현재 보유중인 리플 수량") # 리플
+    account_non = Column(Numeric(30, 10), comment="현재 보유중인 현재 남은 금액") # non
+    account_total = Column(Numeric(30, 10), comment="현재 총 계좌 금액") # total
+
 # ==================== 데이터베이스 유틸리티 함수 ====================
 
 def get_db() -> Session:
