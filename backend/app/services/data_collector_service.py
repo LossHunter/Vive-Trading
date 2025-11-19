@@ -26,7 +26,7 @@ async def collect_ticker_data_periodically():
     설정된 주기마다 티커 데이터를 수집하여 데이터베이스에 저장합니다.
     """
     collection_count = 0
-    last_summary_time = datetime.utcnow()
+    last_summary_time = datetime.now(timezone.utc)
     
     while True:
         try:
@@ -45,7 +45,7 @@ async def collect_ticker_data_periodically():
                         db.close()
                     
                     # 1분마다 요약 정보 출력
-                    now = datetime.utcnow()
+                    now = datetime.now(timezone.utc)
                     if (now - last_summary_time).total_seconds() >= 60:
                         logger.info(f"📊 티커 데이터 수집 통계: 지난 1분간 {collection_count}회 수집 완료")
                         collection_count = 0
@@ -127,7 +127,7 @@ async def collect_trades_data_periodically():
     최근 체결 내역을 주기적으로 수집하여 저장합니다.
     """
     collection_count = 0
-    last_summary_time = datetime.utcnow()
+    last_summary_time = datetime.now(timezone.utc)
     
     while True:
         try:
@@ -148,7 +148,7 @@ async def collect_trades_data_periodically():
                     db.close()
                 
                 # 1분마다 요약 정보 출력
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 if (now - last_summary_time).total_seconds() >= 60:
                     logger.info(f"💱 체결 데이터 수집 통계: 지난 1분간 {collection_count}회 수집 완료")
                     collection_count = 0
@@ -167,7 +167,7 @@ async def collect_orderbook_data_periodically():
     현재 호가창 정보를 주기적으로 수집하여 저장합니다.
     """
     collection_count = 0
-    last_summary_time = datetime.utcnow()
+    last_summary_time = datetime.now(timezone.utc)
     
     while True:
         try:
@@ -186,7 +186,7 @@ async def collect_orderbook_data_periodically():
                         db.close()
                 
                 # 1분마다 요약 정보 출력
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 if (now - last_summary_time).total_seconds() >= 60:
                     logger.info(f"📖 호가창 데이터 수집 통계: 지난 1분간 {collection_count}회 수집 완료")
                     collection_count = 0
@@ -241,298 +241,201 @@ def get_latest_candle_time(db: Session, market: str, use_day_candles: bool = Tru
 async def collect_historical_minute3_candles():
     """
     서버 시작 시 과거 3분봉 데이터 수집
-    현재 시간 기준으로 DB의 가장 최신 데이터 발생 시간부터 현재까지의 공백을 모두 채웁니다.
+    현재 시간 기준으로 최대 120일 이전 데이터까지 최대 2000개를 수집합니다.
     """
     try:
-        logger.info("📅 [3분봉] 과거 데이터 수집 시작...")
+        logger.info("📅 [과거수집-3분봉] 과거 데이터 수집 시작...")
         
         db = SessionLocal()
         try:
             now_utc = datetime.now(timezone.utc)
-            logger.debug(f"🔍 [3분봉] 현재 시각 (UTC): {now_utc} (tzinfo: {now_utc.tzinfo})")
+            # 최대 수집 범위: 현재 시간 기준 120일 이전
+            max_collection_start = now_utc - timedelta(days=120)
+            logger.info(f"📅 [과거수집-3분봉] 현재 시각 (UTC): {now_utc}")
+            logger.info(f"📅 [과거수집-3분봉] 최대 수집 시작 시각 (120일 이전): {max_collection_start}")
             
             async with UpbitAPICollector() as collector:
                 storage = UpbitDataStorage(db)
                 
                 for market in UpbitAPIConfig.MAIN_MARKETS:
                     try:
-                        logger.debug(f"🔍 [3분봉] {market} 처리 시작")
+                        logger.info(f"📅 [과거수집-3분봉] {market} 처리 시작")
                         
-                        # DB에서 가장 최신 3분봉 데이터의 발생 시간 조회
-                        latest_candle_time = get_latest_candle_time(db, market, use_day_candles=False)
-                        logger.debug(f"🔍 [3분봉] {market} DB 최신 데이터 시간: {latest_candle_time}")
+                        # 최대 2000개 데이터 수집 (120일 이전까지)
+                        count_to_fetch = 2000
+                        to_date_str = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
                         
-                        if latest_candle_time is None:
-                            # 데이터가 없으면 최근 200개 수집 (약 10시간치)
-                            logger.info(f"📊 [3분봉] {market}: DB에 데이터 없음, 최근 200개 수집 시작")
-                            candles = await collector.get_candles_minute3(market, count=200)
-                            if candles:
-                                saved_count = storage.save_candles_minute3(candles, market)
-                                logger.info(f"✅ [3분봉] {market}: {len(candles)}개 수집, {saved_count}개 저장 완료")
-                            else:
-                                logger.warning(f"⚠️ [3분봉] {market}: API에서 데이터를 가져올 수 없음")
-                        else:
-                            # 최신 데이터 이후부터 현재까지의 공백 계산
-                            # 3분봉이므로 최신 데이터 시간 + 3분부터 시작
-                            # latest_candle_time은 이미 UTC timezone-aware로 보장됨
-                            start_time = latest_candle_time + timedelta(minutes=3)
+                        logger.info(f"📅 [과거수집-3분봉] {market}: API 요청 (count={count_to_fetch}, to={to_date_str})")
+                        
+                        candles = await collector.get_candles_minute3(
+                            market, 
+                            count=count_to_fetch,
+                            to=to_date_str
+                        )
+                        
+                        logger.info(f"📅 [과거수집-3분봉] {market}: API 응답 {len(candles) if candles else 0}개")
+                        
+                        if candles:
+                            # 120일 제한 적용: max_collection_start 이후의 데이터만 필터링
+                            filtered_candles = []
+                            filtered_out_count = 0
                             
-                            # timezone 일치 확인 (둘 다 UTC여야 함)
-                            if start_time.tzinfo != now_utc.tzinfo:
-                                logger.warning(f"⚠️ [3분봉] {market}: timezone 불일치! start_time.tzinfo={start_time.tzinfo}, now_utc.tzinfo={now_utc.tzinfo}")
-                                if start_time.tzinfo is None:
-                                    start_time = start_time.replace(tzinfo=timezone.utc)
-                                if now_utc.tzinfo is None:
-                                    now_utc = now_utc.replace(tzinfo=timezone.utc)
-                            
-                            logger.debug(f"🔍 [3분봉] {market} 수집 시작 시각: {start_time} (최신 데이터: {latest_candle_time} + 3분)")
-                            logger.debug(f"🔍 [3분봉] {market} 현재 시각: {now_utc}")
-                            logger.debug(f"🔍 [3분봉] {market} 시간 비교: start_time >= now_utc? {start_time >= now_utc}")
-                            
-                            if start_time >= now_utc:
-                                logger.debug(f"✅ [3분봉] {market}: 데이터 최신 상태 (start_time={start_time} >= now_utc={now_utc})")
-                                continue
-                            
-                            # 공백 기간 계산 (분 단위)
-                            time_diff = now_utc - start_time
-                            minutes_diff = int(time_diff.total_seconds() / 60)
-                            logger.debug(f"🔍 [3분봉] {market} 공백 기간: {minutes_diff}분 ({start_time} ~ {now_utc})")
-                            
-                            if minutes_diff > 0:
-                                # 필요한 캔들 개수 계산 (3분 간격이므로)
-                                needed_count = (minutes_diff // 3) + 1
-                                # API 제한을 고려하여 최대 200개씩 나눠서 수집
-                                max_count_per_request = 200
-                                
-                                logger.info(f"📊 [3분봉] {market}: {needed_count}개 데이터 수집 필요 (최신 DB: {latest_candle_time}, 시작: {start_time}, 종료: {now_utc})")
-                                
-                                collected_total = 0
-                                current_time = start_time
-                                iteration = 0
-                                max_iterations = 1000  # 무한 루프 방지
-                                
-                                while current_time < now_utc:
-                                    iteration += 1
-                                    if iteration > max_iterations:
-                                        logger.error(f"❌ [3분봉] {market}: 최대 반복 횟수({max_iterations}) 도달, 루프 종료 (current_time={current_time}, now_utc={now_utc})")
-                                        break
-                                    
-                                    logger.debug(f"🔍 [3분봉] {market} 반복 #{iteration}: current_time={current_time}, now_utc={now_utc}")
-                                    
-                                    # 남은 시간 계산
-                                    remaining_minutes = int((now_utc - current_time).total_seconds() / 60)
-                                    count_to_fetch = min(max_count_per_request, (remaining_minutes // 3) + 1)
-                                    
-                                    logger.debug(f"🔍 [3분봉] {market} 반복 #{iteration}: 남은 시간={remaining_minutes}분, 요청 개수={count_to_fetch}")
-                                    
-                                    if count_to_fetch <= 0:
-                                        logger.debug(f"✅ [3분봉] {market} 반복 #{iteration}: count_to_fetch <= 0, 루프 종료")
-                                        break
-                                    
-                                    # Upbit API는 to 파라미터로 "해당 시점 이전"의 데이터를 반환
-                                    # current_time 이후의 데이터를 수집하려면 to=current_time+3분으로 설정
-                                    # 하지만 더 안전하게 to=now_utc로 설정하여 최신 데이터부터 가져온 후 필터링
-                                    to_date_str = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
-                                    logger.debug(f"🔍 [3분봉] {market} 반복 #{iteration}: API 요청 (count={count_to_fetch}, to={to_date_str}, current_time={current_time})")
-                                    
-                                    candles = await collector.get_candles_minute3(
-                                        market, 
-                                        count=count_to_fetch,
-                                        to=to_date_str
-                                    )
-                                    
-                                    logger.debug(f"🔍 [3분봉] {market} 반복 #{iteration}: API 응답 {len(candles) if candles else 0}개")
-                                    
-                                    if candles:
-                                        # current_time 이후의 데이터만 필터링
-                                        filtered_candles = []
-                                        filtered_out_count = 0
-                                        
-                                        for candle in candles:
-                                            candle_time_str = candle.get("candle_date_time_utc")
-                                            if candle_time_str:
-                                                try:
-                                                    if isinstance(candle_time_str, str):
-                                                        candle_time_str = candle_time_str.replace('Z', '+00:00')
-                                                        candle_dt = datetime.fromisoformat(candle_time_str)
-                                                    elif isinstance(candle_time_str, datetime):
-                                                        candle_dt = candle_time_str
-                                                    else:
-                                                        continue
-                                                    
-                                                    # timezone-aware로 보장
-                                                    if candle_dt.tzinfo is None:
-                                                        candle_dt = candle_dt.replace(tzinfo=timezone.utc)
-                                                    
-                                                    # current_time 이후의 데이터만 포함
-                                                    if candle_dt >= current_time and candle_dt < now_utc:
-                                                        filtered_candles.append(candle)
-                                                    else:
-                                                        filtered_out_count += 1
-                                                        logger.debug(f"🔍 [3분봉] {market} 필터링 제외: {candle_dt} (조건: {current_time} <= 시간 < {now_utc})")
-                                                except (ValueError, TypeError) as e:
-                                                    logger.debug(f"⚠️ [3분봉] {market} 캔들 시간 파싱 실패: {candle_time_str} - {e}")
-                                                    continue
-                                        
-                                        logger.debug(f"🔍 [3분봉] {market} 반복 #{iteration}: 필터링 결과 - 포함={len(filtered_candles)}개, 제외={filtered_out_count}개")
-                                        
-                                        if filtered_candles:
-                                            saved_count = storage.save_candles_minute3(filtered_candles, market)
-                                            collected_total += saved_count
-                                            
-                                            logger.debug(f"🔍 [3분봉] {market} 반복 #{iteration}: 저장 결과 - {saved_count}개 저장 (필터링된 {len(filtered_candles)}개 중)")
-                                            
-                                            # 가장 최신 캔들 시간 찾기 (필터링된 데이터 중)
-                                            latest_candle = filtered_candles[-1]
-                                            candle_time_str = latest_candle.get("candle_date_time_utc")
-                                            
-                                            if candle_time_str:
-                                                try:
-                                                    if isinstance(candle_time_str, str):
-                                                        candle_time_str = candle_time_str.replace('Z', '+00:00')
-                                                        latest_in_batch = datetime.fromisoformat(candle_time_str)
-                                                    elif isinstance(candle_time_str, datetime):
-                                                        latest_in_batch = candle_time_str
-                                                    else:
-                                                        latest_in_batch = None
-                                                    
-                                                    if latest_in_batch:
-                                                        if latest_in_batch.tzinfo is None:
-                                                            latest_in_batch = latest_in_batch.replace(tzinfo=timezone.utc)
-                                                        
-                                                        # 다음 수집 시작 시간 = 가장 최신 캔들 시간 + 3분
-                                                        next_time = latest_in_batch + timedelta(minutes=3)
-                                                        logger.debug(f"🔍 [3분봉] {market} 반복 #{iteration}: 최신 캔들={latest_in_batch}, 다음 시간={next_time}")
-                                                        
-                                                        # 시간 전진 확인
-                                                        if next_time <= current_time:
-                                                            logger.warning(f"⚠️ [3분봉] {market} 반복 #{iteration}: 시간이 전진하지 않음! (current={current_time}, next={next_time}), 강제 전진")
-                                                            current_time += timedelta(minutes=3)
-                                                        else:
-                                                            current_time = next_time
-                                                        
-                                                        # 저장된 데이터가 없으면 이미 모든 데이터가 있는 것이므로 종료
-                                                        if saved_count == 0:
-                                                            logger.info(f"✅ [3분봉] {market}: 모든 데이터가 이미 존재합니다 (현재 시점: {current_time}, 최신 캔들: {latest_in_batch})")
-                                                            break
-                                                    else:
-                                                        logger.warning(f"⚠️ [3분봉] {market} 반복 #{iteration}: latest_in_batch 파싱 실패")
-                                                        current_time += timedelta(minutes=3)
-                                                except (ValueError, TypeError) as e:
-                                                    logger.warning(f"⚠️ [3분봉] {market} 반복 #{iteration}: 캔들 시간 파싱 실패: {candle_time_str} - {e}")
-                                                    current_time += timedelta(minutes=3)
-                                            else:
-                                                logger.warning(f"⚠️ [3분봉] {market} 반복 #{iteration}: 캔들 시간이 없음")
-                                                current_time += timedelta(minutes=3)
+                            for candle in candles:
+                                candle_time_str = candle.get("candle_date_time_utc")
+                                if candle_time_str:
+                                    try:
+                                        if isinstance(candle_time_str, str):
+                                            candle_time_str = candle_time_str.replace('Z', '+00:00')
+                                            candle_dt = datetime.fromisoformat(candle_time_str)
+                                        elif isinstance(candle_time_str, datetime):
+                                            candle_dt = candle_time_str
                                         else:
-                                            # 필터링된 데이터가 없으면 이미 모든 데이터가 있는 것
-                                            logger.info(f"✅ [3분봉] {market}: {current_time} 이후의 데이터가 이미 모두 존재합니다 (API 응답: {len(candles)}개, 필터링 후: 0개)")
-                                            break
-                                    else:
-                                        # 데이터가 없으면 종료
-                                        logger.info(f"✅ [3분봉] {market}: 더 이상 수집할 데이터가 없습니다 (API 응답: 0개)")
-                                        break
-                                    
-                                    # API 요청 제한을 고려한 짧은 대기
-                                    await asyncio.sleep(0.1)
+                                            continue
+                                        
+                                        # timezone-aware로 보장
+                                        if candle_dt.tzinfo is None:
+                                            candle_dt = candle_dt.replace(tzinfo=timezone.utc)
+                                        
+                                        # 120일 제한 적용: max_collection_start 이후의 데이터만 포함
+                                        if candle_dt >= max_collection_start and candle_dt < now_utc:
+                                            filtered_candles.append(candle)
+                                        else:
+                                            filtered_out_count += 1
+                                    except (ValueError, TypeError) as e:
+                                        logger.debug(f"⚠️ [과거수집-3분봉] {market} 캔들 시간 파싱 실패: {candle_time_str} - {e}")
+                                        continue
+                            
+                            logger.info(f"📅 [과거수집-3분봉] {market}: 필터링 결과 - 포함={len(filtered_candles)}개, 제외={filtered_out_count}개")
+                            
+                            if filtered_candles:
+                                saved_count = storage.save_candles_minute3(filtered_candles, market)
+                                logger.info(f"✅ [과거수집-3분봉] {market}: {saved_count}개 저장 완료 (필터링된 {len(filtered_candles)}개 중)")
                                 
-                                logger.info(f"✅ [3분봉] {market}: 총 {collected_total}개 데이터 수집 완료 (반복 횟수: {iteration})")
+                                # 3분봉 데이터 수집 후 지표 계산 (최근 120일치)
+                                if saved_count > 0:
+                                    from app.services.indicator_service import calculate_indicators_for_date_range
+                                    indicator_start_date = now_utc - timedelta(days=120)
+                                    logger.info(f"📅 [과거수집-3분봉] {market}: 지표 계산 시작...")
+                                    await calculate_indicators_for_date_range(db, market, indicator_start_date, now_utc)
+                                    logger.info(f"📅 [과거수집-3분봉] {market}: 지표 계산 완료")
                             else:
-                                logger.debug(f"✅ [3분봉] {market}: 데이터 최신 상태 (minutes_diff={minutes_diff} <= 0)")
+                                logger.info(f"✅ [과거수집-3분봉] {market}: 저장할 데이터 없음 (모두 120일 제한 밖이거나 중복)")
+                                # 데이터가 없어도 기존 데이터에 대한 지표 계산은 수행
+                                from app.services.indicator_service import calculate_indicators_for_date_range
+                                indicator_start_date = now_utc - timedelta(days=120)
+                                await calculate_indicators_for_date_range(db, market, indicator_start_date, now_utc)
+                        else:
+                            logger.warning(f"⚠️ [과거수집-3분봉] {market}: API에서 데이터를 가져올 수 없음")
+                            # 데이터가 없어도 기존 데이터에 대한 지표 계산은 수행
+                            from app.services.indicator_service import calculate_indicators_for_date_range
+                            indicator_start_date = now_utc - timedelta(days=120)
+                            await calculate_indicators_for_date_range(db, market, indicator_start_date, now_utc)
                         
                     except Exception as e:
-                        logger.error(f"❌ [3분봉] {market} 과거 데이터 수집 오류: {e}", exc_info=True)
+                        logger.error(f"❌ [과거수집-3분봉] {market} 과거 데이터 수집 오류: {e}", exc_info=True)
                         continue
                 
-                logger.info("✅ [3분봉] 과거 데이터 수집 완료")
+                logger.info("✅ [과거수집-3분봉] 과거 데이터 수집 완료")
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"❌ [3분봉] 과거 데이터 수집 오류: {e}", exc_info=True)
+        logger.error(f"❌ [과거수집-3분봉] 과거 데이터 수집 오류: {e}", exc_info=True)
 
 
 async def collect_historical_day_candles_and_indicators():
     """
     서버 시작 시 과거 일봉 데이터 수집 및 지표 계산
-    현재 시간 기준으로 DB의 가장 최신 데이터 발생 시간부터 현재까지의 공백을 모두 채웁니다.
+    현재 시간 기준으로 최대 120일 이전 데이터까지 최대 2000개를 수집합니다.
     """
     try:
-        logger.info("📅 과거 일봉 데이터 수집 및 지표 계산 시작...")
+        logger.info("📅 [과거수집-일봉] 과거 일봉 데이터 수집 및 지표 계산 시작...")
         
         db = SessionLocal()
         try:
             now_utc = datetime.now(timezone.utc)
             today_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-            one_month_ago = today_utc - timedelta(days=30)
+            # 120일 이전까지 수집
+            one_hundred_twenty_days_ago = today_utc - timedelta(days=120)
+            # 지표 계산은 최근 120일치 수행
+            indicator_start_date = today_utc - timedelta(days=120)
             
             async with UpbitAPICollector() as collector:
                 storage = UpbitDataStorage(db)
                 
                 for market in UpbitAPIConfig.MAIN_MARKETS:
                     try:
-                        # DB에서 가장 최신 일봉 데이터의 발생 시간 조회
-                        latest_candle_time = get_latest_candle_time(db, market, use_day_candles=True)
+                        logger.info(f"📅 [과거수집-일봉] {market} 처리 시작")
                         
-                        if latest_candle_time is None:
-                            # 데이터가 없으면 한달치 수집
-                            logger.info(f"📊 {market}: 일봉 데이터 없음, 한달치 수집")
-                            start_date = one_month_ago
-                        else:
-                            # 최신 데이터 다음 날부터 시작
-                            start_date = (latest_candle_time + timedelta(days=1)).replace(
-                                hour=0, minute=0, second=0, microsecond=0
-                            )
+                        # 최대 2000개 데이터 수집 (120일 이전까지)
+                        count_to_fetch = 2000
+                        to_date_str = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
                         
-                        # 수집할 날짜 범위 계산
-                        end_date = today_utc
+                        logger.info(f"📅 [과거수집-일봉] {market}: API 요청 (count={count_to_fetch}, to={to_date_str})")
                         
-                        if start_date > end_date:
-                            logger.debug(f"✅ {market}: 일봉 데이터가 최신 상태입니다")
-                            # 기존 데이터에 대한 지표 계산은 수행
-                            await calculate_indicators_for_date_range(db, market, one_month_ago, today_utc)
-                            continue
+                        candles = await collector.get_candles_day(
+                            market, 
+                            count=count_to_fetch,
+                            to=to_date_str
+                        )
                         
-                        # 누락된 날짜 계산
-                        missing_dates = []
-                        current_date = start_date
-                        while current_date <= end_date:
-                            missing_dates.append(current_date)
-                            current_date += timedelta(days=1)
+                        logger.info(f"📅 [과거수집-일봉] {market}: API 응답 {len(candles) if candles else 0}개")
                         
-                        if missing_dates:
-                            logger.info(f"📊 {market}: {len(missing_dates)}개 날짜의 일봉 데이터 수집 필요 (최신: {latest_candle_time})")
+                        if candles:
+                            # 120일 제한 적용: one_hundred_twenty_days_ago 이후의 데이터만 필터링
+                            filtered_candles = []
+                            filtered_out_count = 0
                             
-                            # 누락된 날짜별로 데이터 수집
-                            for target_date in missing_dates:
-                                try:
-                                    to_date_str = target_date.strftime("%Y-%m-%dT%H:%M:%SZ")
-                                    candles = await collector.get_candles_day(market, count=1, to=to_date_str)
-                                    
-                                    if candles:
-                                        storage.save_candles_day(candles, market)
-                                    
-                                    # API 요청 제한을 고려한 짧은 대기
-                                    await asyncio.sleep(0.1)
-                                except Exception as e:
-                                    logger.warning(f"⚠️ {market} {target_date.date()} 일봉 데이터 수집 실패: {e}")
-                                    continue
+                            for candle in candles:
+                                candle_time_str = candle.get("candle_date_time_utc")
+                                if candle_time_str:
+                                    try:
+                                        if isinstance(candle_time_str, str):
+                                            candle_time_str = candle_time_str.replace('Z', '+00:00')
+                                            candle_dt = datetime.fromisoformat(candle_time_str)
+                                        elif isinstance(candle_time_str, datetime):
+                                            candle_dt = candle_time_str
+                                        else:
+                                            continue
+                                        
+                                        # timezone-aware로 보장
+                                        if candle_dt.tzinfo is None:
+                                            candle_dt = candle_dt.replace(tzinfo=timezone.utc)
+                                        
+                                        # 120일 제한 적용: one_hundred_twenty_days_ago 이후의 데이터만 포함
+                                        if candle_dt >= one_hundred_twenty_days_ago and candle_dt < now_utc:
+                                            filtered_candles.append(candle)
+                                        else:
+                                            filtered_out_count += 1
+                                    except (ValueError, TypeError) as e:
+                                        logger.debug(f"⚠️ [과거수집-일봉] {market} 캔들 시간 파싱 실패: {candle_time_str} - {e}")
+                                        continue
                             
-                            # RSI와 indicators 계산 (과거 한달간)
-                            await calculate_indicators_for_date_range(db, market, one_month_ago, today_utc)
+                            logger.info(f"📅 [과거수집-일봉] {market}: 필터링 결과 - 포함={len(filtered_candles)}개, 제외={filtered_out_count}개")
+                            
+                            if filtered_candles:
+                                saved_count = storage.save_candles_day(filtered_candles, market)
+                                logger.info(f"✅ [과거수집-일봉] {market}: {saved_count}개 저장 완료 (필터링된 {len(filtered_candles)}개 중)")
+                            else:
+                                logger.info(f"✅ [과거수집-일봉] {market}: 저장할 데이터 없음 (모두 120일 제한 밖이거나 중복)")
+                            
+                            # RSI와 indicators 계산 (최근 120일치)
+                            logger.info(f"📅 [과거수집-일봉] {market}: 지표 계산 시작...")
+                            await calculate_indicators_for_date_range(db, market, indicator_start_date, today_utc)
+                            logger.info(f"📅 [과거수집-일봉] {market}: 지표 계산 완료")
                         else:
-                            logger.debug(f"✅ {market}: 모든 날짜의 일봉 데이터가 이미 존재합니다")
-                            # 기존 데이터에 대한 지표 계산도 수행 (누락된 지표가 있을 수 있음)
-                            await calculate_indicators_for_date_range(db, market, one_month_ago, today_utc)
+                            logger.warning(f"⚠️ [과거수집-일봉] {market}: API에서 데이터를 가져올 수 없음")
+                            # 데이터가 없어도 기존 데이터에 대한 지표 계산은 수행
+                            await calculate_indicators_for_date_range(db, market, indicator_start_date, today_utc)
                         
                     except Exception as e:
-                        logger.error(f"❌ {market} 과거 데이터 수집 오류: {e}")
+                        logger.error(f"❌ [과거수집-일봉] {market} 과거 데이터 수집 오류: {e}")
                         continue
                 
-                logger.info("✅ 과거 한달간 일봉 데이터 수집 및 지표 계산 완료")
+                logger.info("✅ [과거수집-일봉] 과거 일봉 데이터 수집 및 지표 계산 완료")
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"❌ 과거 데이터 수집 오류: {e}")
+        logger.error(f"❌ [과거수집-일봉] 과거 데이터 수집 오류: {e}")
 
 
 async def collect_historical_data_internal(market: str, count: int, interval: str = "minute3"):
@@ -573,4 +476,3 @@ async def collect_historical_data_internal(market: str, count: int, interval: st
     except Exception as e:
         logger.error(f"❌ 과거 데이터 수집 오류: {e}")
         return {"success": False, "error": str(e)}
-

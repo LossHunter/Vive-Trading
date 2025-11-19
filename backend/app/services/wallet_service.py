@@ -147,146 +147,104 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
     
     user_signals = {}
     for user in users:
-        try:
-            # userId를 account_id(UUID)로 변환
-            account_id_str = get_account_id_for_user(user["userId"])
-            account_id_uuid = UUID(account_id_str)
-            
-            # 해당 account_id의 최신 signal 조회
-            latest_signal = db.query(LLMTradingSignal).filter(
-                LLMTradingSignal.account_id == account_id_uuid
-            ).order_by(desc(LLMTradingSignal.created_at)).first()
-            
-            if latest_signal:
-                user_signals[user["userId"]] = {
-                    "justification": latest_signal.justification,
-                    "signal": latest_signal.signal
-                }
-                logger.debug(f"✅ userId={user['userId']} LLM 신호 조회 성공: {latest_signal.signal}")
-            else:
-                # signal이 없으면 기본값 사용
-                user_signals[user["userId"]] = {
-                    "justification": user["why"],  # 기본값: 하드코딩된 why
-                    "signal": "hold"  # 기본값: hold
-                }
-                logger.debug(f"ℹ️ userId={user['userId']} LLM 신호 없음, 기본값 사용")
-        except Exception as e:
-            logger.warning(f"⚠️ userId={user['userId']} LLM 신호 조회 실패: {e}")
+        # userId를 account_id로 변환
+        account_id = get_account_id_from_user_id(user["userId"])
+        
+        # 해당 account_id의 최신 signal 조회
+        latest_signal = db.query(LLMTradingSignal).filter(
+            LLMTradingSignal.account_id == account_id
+        ).order_by(desc(LLMTradingSignal.created_at)).first()
+        
+        if latest_signal:
             user_signals[user["userId"]] = {
-                "justification": user["why"],
-                "signal": "hold"
+                "justification": latest_signal.justification,
+                "signal": latest_signal.signal
             }
+        else:
+            # signal이 없으면 기본값 사용
+            user_signals[user["userId"]] = {
+                "justification": user["why"],  # 기본값: 하드코딩된 why
+                "signal": "hold"  # 기본값: hold
+            }
+    
     # 각 사용자별 지갑 데이터 생성
     wallet_data = []
     
     for user in users:
-        try:
-            # ⭐ 추가: userId를 account_id(UUID)로 변환하여 해당 사용자 데이터만 필터링
-            account_id_str = get_account_id_for_user(user["userId"])
-            account_id_uuid = UUID(account_id_str)
-            
-            # 해당 account_id의 최신 collected_at 찾기
-            user_latest_collected_at = None
-            for (acc_id, collected_at_key, currency), account in grouped_accounts.items():
-                if account.account_id == account_id_uuid and account.collected_at:
-                    collected_at_rounded = account.collected_at.replace(microsecond=0)
-                    if user_latest_collected_at is None or collected_at_rounded > user_latest_collected_at:
-                        user_latest_collected_at = collected_at_rounded
-            
-            # 해당 사용자의 최신 collected_at 데이터만 필터링
-            if user_latest_collected_at:
-                accounts = [
-                    acc for (acc_id, collected_at_key, currency), acc in grouped_accounts.items()
-                    if acc.account_id == account_id_uuid 
-                    and acc.collected_at 
-                    and acc.collected_at.replace(microsecond=0) == user_latest_collected_at
-                ]
+        # 전체에서 최신 collected_at 찾기 (모든 account_id 중)
+        if account_latest_collected:
+            latest_collected_at = max(account_latest_collected.values())
+        else:
+            latest_collected_at = None
+        
+        # 최신 collected_at의 데이터만 필터링 (account_id와 collected_at이 일치하는 것)
+        # collected_at을 초 단위로 반올림하여 비교
+        accounts = [
+            acc for (acc_id, collected_at_key, currency), acc in grouped_accounts.items()
+            if acc.collected_at and acc.collected_at.replace(microsecond=0) == latest_collected_at
+        ]
+        
+        # 코인 수량 초기화
+        coin_balances = {
+            "BTC": 0.0,
+            "ETH": 0.0,
+            "DOGE": 0.0,
+            "SOL": 0.0,
+            "XRP": 0.0,
+            "KRW": 0.0
+        }
+        
+        # 계정 정보에서 코인 수량 추출
+        seen_currencies = set()
+        for account in accounts:
+            if account.currency:
+                currency = account.currency.upper()
+                # "KRW-BTC" 형식에서 "BTC"만 추출
+                if "-" in currency:
+                    currency = currency.split("-")[1]
             else:
-                # 해당 사용자의 데이터가 없으면 빈 리스트
-                accounts = []
+                currency = ""
             
-            # 코인 수량 초기화
-            coin_balances = {
-                "BTC": 0.0,
-                "ETH": 0.0,
-                "DOGE": 0.0,
-                "SOL": 0.0,
-                "XRP": 0.0,
-                "KRW": 0.0
-            }
+            if currency in seen_currencies:
+                continue
+            seen_currencies.add(currency)
             
-            # 계정 정보에서 코인 수량 추출
-            seen_currencies = set()
-            for account in accounts:
-                if account.currency:
-                    currency = account.currency.upper()
-                    # "KRW-BTC" 형식에서 "BTC"만 추출
-                    if "-" in currency:
-                        currency = currency.split("-")[1]
-                else:
-                    currency = ""
-                
-                if currency in seen_currencies:
-                    continue
-                seen_currencies.add(currency)
-                
-                balance = float(account.balance) if account.balance else 0.0
-                
-                if currency in coin_balances:
-                    coin_balances[currency] = balance
+            balance = float(account.balance) if account.balance else 0.0
             
-            # 전체 잔액 계산
-            total = (
-                (coin_balances["BTC"] * ticker_prices.get("BTC", 0)) +
-                (coin_balances["ETH"] * ticker_prices.get("ETH", 0)) +
-                (coin_balances["DOGE"] * ticker_prices.get("DOGE", 0)) +
-                (coin_balances["SOL"] * ticker_prices.get("SOL", 0)) +
-                (coin_balances["XRP"] * ticker_prices.get("XRP", 0)) +
-                coin_balances["KRW"]
-            )
-            
-            # llm_trading_signal에서 why와 position 조회
-            user_signal = user_signals.get(user["userId"], {})
-            why = user_signal.get("justification", user["why"])  # signal의 justification 사용, 없으면 기본값
-            position = user_signal.get("signal", "hold")  # signal의 signal 값을 그대로 사용, 없으면 기본값 "hold"
-            
-            wallet_data.append({
-                "userId": user["userId"],
-                "username": user["username"],
-                "colors": user["colors"],
-                "logo": user["logo"],
-                "time": date_str,
-                "why": why,  # llm_trading_signal의 justification 사용
-                "position": position,  # llm_trading_signal의 signal 사용
-                "btc": coin_balances["BTC"],
-                "eth": coin_balances["ETH"],
-                "doge": coin_balances["DOGE"],
-                "sol": coin_balances["SOL"],
-                "xrp": coin_balances["XRP"],
-                "non": coin_balances["KRW"],
-                "total": total
-            })
-            
-        except Exception as e:
-            logger.error(f"❌ userId={user['userId']} 지갑 데이터 생성 실패: {e}")
-            # 오류 발생 시 기본값으로 추가
-            user_signal = user_signals.get(user["userId"], {})
-            wallet_data.append({
-                "userId": user["userId"],
-                "username": user["username"],
-                "colors": user["colors"],
-                "logo": user["logo"],
-                "time": date_str,
-                "why": user_signal.get("justification", user["why"]),
-                "position": user_signal.get("signal", "hold"),
-                "btc": 0.0,
-                "eth": 0.0,
-                "doge": 0.0,
-                "sol": 0.0,
-                "xrp": 0.0,
-                "non": 0.0,
-                "total": 0.0
-            })
+            if currency in coin_balances:
+                coin_balances[currency] = balance
+        
+        # 전체 잔액 계산
+        total = (
+            (coin_balances["BTC"] * ticker_prices.get("BTC", 0)) +
+            (coin_balances["ETH"] * ticker_prices.get("ETH", 0)) +
+            (coin_balances["DOGE"] * ticker_prices.get("DOGE", 0)) +
+            (coin_balances["SOL"] * ticker_prices.get("SOL", 0)) +
+            (coin_balances["XRP"] * ticker_prices.get("XRP", 0)) +
+            coin_balances["KRW"]
+        )
+        
+        # llm_trading_signal에서 why와 position 조회
+        user_signal = user_signals.get(user["userId"], {})
+        why = user_signal.get("justification", user["why"])  # signal의 justification 사용, 없으면 기본값
+        position = user_signal.get("signal", "hold")  # signal의 signal 값을 그대로 사용, 없으면 기본값 "hold"
+        
+        wallet_data.append({
+            "userId": user["userId"],
+            "username": user["username"],
+            "colors": user["colors"],
+            "logo": user["logo"],
+            "time": date_str,
+            "why": why,  # llm_trading_signal의 justification 사용
+            "position": position,  # llm_trading_signal의 signal 사용
+            "btc": coin_balances["BTC"],
+            "eth": coin_balances["ETH"],
+            "doge": coin_balances["DOGE"],
+            "sol": coin_balances["SOL"],
+            "xrp": coin_balances["XRP"],
+            "non": coin_balances["KRW"],
+            "total": total
+        })
     
     return wallet_data
 
@@ -343,7 +301,7 @@ async def get_wallet_data_list_other(db: Session) -> List[Dict]:
     # 30일치 데이터 수집
     all_wallet_data = []
     for days_ago in range(30):
-        target_date = datetime.utcnow() - timedelta(days=days_ago)
+        target_date = datetime.now(timezone.utc) - timedelta(days=days_ago)
         daily_data = await get_wallet_data(db, target_date)
         all_wallet_data.extend(daily_data)
     
@@ -359,7 +317,7 @@ async def get_wallet_data_list_other(db: Session) -> List[Dict]:
             time_int = int(date_obj.strftime("%Y%m%d%H%M"))
         except ValueError:
             # 파싱 실패 시 현재 시간 사용
-            time_int = int(datetime.utcnow().strftime("%Y%m%d%H%M"))
+            time_int = int(datetime.now(timezone.utc).strftime("%Y%m%d%H%M"))
         
         # usemodel은 username과 동일하게 설정
         usemodel = wallet_item["username"]
@@ -371,9 +329,9 @@ async def get_wallet_data_list_other(db: Session) -> List[Dict]:
             "colors": wallet_item["colors"],
             "logo": wallet_item["logo"],
             "time": time_int,
-            "why": wallet_item["why"],  # 프롬포트
-            "position": wallet_item["position"],  # 구매,홀드,판매 등 
-            "btc": wallet_item["btc"],
+            "why": "", # 빈 문자열
+            "position": "", # 빈 문자열
+            "bit": wallet_item["btc"], # btc를 bit로 변환
             "eth": wallet_item["eth"],
             "doge": wallet_item["doge"],
             "sol": wallet_item["sol"],
@@ -399,7 +357,7 @@ async def get_wallet_data_30days(db: Session) -> List[Dict]:
     all_wallet_data = []
     
     for days_ago in range(30):
-        target_date = datetime.utcnow() - timedelta(days=days_ago)
+        target_date = datetime.now(timezone.utc) - timedelta(days=days_ago)
         daily_data = await get_wallet_data(db, target_date)
         all_wallet_data.extend(daily_data)
     
@@ -414,51 +372,26 @@ async def broadcast_wallet_data_periodically(manager: "ConnectionManager"):
     Args:
         manager: WebSocket ConnectionManager 인스턴스
     """
-
-    print("=" * 80)
-    print("🚀🚀🚀 지갑 데이터 브로드캐스트 태스크 시작!!! 🚀🚀🚀")
-    print("=" * 80)
-    logger.info("🚀 지갑 데이터 브로드캐스트 태스크 시작")
-    logger.warning("🚨 [DEBUG] 브로드캐스트 함수 진입 확인!")
-    
-    try:
-        logger.info(f"📡 ConnectionManager 객체: {manager}")
-        logger.info(f"📡 활성 연결 수: {len(manager.active_connections) if manager else 'manager is None'}")
-    except Exception as e:
-        logger.error(f"❌ manager 확인 중 오류: {e}")
-    
     
     while True:
         try:
             # 다음 정분까지 대기
             wait_seconds = calculate_wait_seconds_until_next_scheduled_time('minute', 1)
-            logger.info(f"⏰ 다음 지갑 데이터 전송까지 {wait_seconds:.1f}초 대기 중...")
             
             if wait_seconds > 0:
                 await asyncio.sleep(wait_seconds)
             
-            logger.info(f"📊 지갑 데이터 수집 시작 (연결된 클라이언트: {len(manager.active_connections)}개)")
-
             db = SessionLocal()
             try:
                 wallet_data = await get_wallet_data_list_other(db)
-                
-                logger.info(f"✅ 지갑 데이터 수집 완료: {len(wallet_data)}개 레코드")
-                
-                # 샘플 데이터 로깅 (첫 번째 레코드만)
-                if wallet_data:
-                    sample = wallet_data[0]
-                    logger.info(f"   샘플: userId={sample.get('userId')}, why={sample.get('why')[:30] if sample.get('why') else 'None'}..., position={sample.get('position')}")
-                
-                message = json.dumps({
+
+                await manager.broadcast(json.dumps({
                     "type": "wallet",
                     "data": wallet_data,
                     "timestamp": datetime.now(timezone.utc).isoformat()
-                })
-                
-                await manager.broadcast(message)
-                
-                logger.info(f"📤 WebSocket 브로드캐스트 완료 ({len(wallet_data)}개 레코드, {len(manager.active_connections)}개 클라이언트)")
+                }))
+
+                logger.debug(f"✅ 지갑 데이터 전송 완료 ({len(wallet_data)}명, 정분 기준)")
             finally:
                 db.close()
         

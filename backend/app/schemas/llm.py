@@ -5,17 +5,18 @@ ModelName = str
 
 # LLM의 응답 JSON 구조를 검증하기 위한 Pydantic 모델
 class TradeDecision(BaseModel):
-    stop_loss: float
-    account_id: Optional[str] = None
-    signal: Literal["buy_to_enter", "sell_to_enter", "hold", "close_position"]
-    leverage: int
-    risk_usd: float
-    profit_target: float
-    quantity: float
-    invalidation_condition: str
-    justification: str
-    confidence: float = Field(..., ge=0.0, le=1.0)
     coin: str
+    signal: Literal["buy_to_enter", "sell_to_exit", "hold", "close_position", "buy", "sell", "exit"]
+    quantity: Optional[float] = None
+    stop_loss: Optional[float] = None
+    profit_target: Optional[float] = None
+    leverage: Optional[int] = None
+    risk_usd: Optional[float] = None
+    invalidation_condition: Optional[str] = None
+    justification: Optional[str] = None
+    thinking: Optional[str] = None # thinking 추가
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
+    account_id: Optional[str] = None
 
 # RAG 기능이 포함된 API 요청 본문 스키마
 class TradeDecisionRequest(BaseModel):

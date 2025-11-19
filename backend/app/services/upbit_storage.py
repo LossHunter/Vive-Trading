@@ -281,6 +281,13 @@ class UpbitDataStorage:
             logger.debug(f"🔍 [저장] {market} 3분봉: 저장={saved_count}개, 중복={skipped_count}개, 오류={error_count}개 (총 {len(sorted_candles)}개)")
             if saved_count > 0:
                 logger.info(f"✅ [저장] {market} 3분봉: {saved_count}개 저장 완료 (중복 {skipped_count}개 제외)")
+            elif skipped_count > 0:
+                logger.info(f"⏭️ [저장] {market} 3분봉: 모든 데이터 중복 (저장 0개, 중복 {skipped_count}개)")
+            elif error_count > 0:
+                logger.warning(f"⚠️ [저장] {market} 3분봉: 저장 실패 (저장 0개, 오류 {error_count}개)")
+            else:
+                logger.warning(f"⚠️ [저장] {market} 3분봉: 저장 결과 없음 (저장 0개, 중복 0개, 오류 0개)")
+                
         except Exception as e:
             self.db.rollback()
             logger.error(f"❌ [저장] {market} 3분봉 커밋 실패: {e}")

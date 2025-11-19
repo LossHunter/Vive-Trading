@@ -7,11 +7,12 @@ import asyncio
 import json
 import logging
 import threading
-from datetime import datetime
-from typing import List, Dict, Set, Optional
+from datetime import datetime, timezone
+from typing import List, Dict, Optional
 from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from sqlalchemy import true
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
@@ -20,7 +21,7 @@ from app.api.endpoints import llm, market, trading
 from app.rag.document_loader import initialize_rag_data
 from app.core.config import ServerConfig, UpbitAPIConfig, DataCollectionConfig, IndicatorsConfig, WalletConfig, OrderExecutionConfig
 from app.db.database import get_db, init_db, test_connection, SessionLocal, LLMPromptData, LLMTradingSignal
-from app.services.llm_prompt_generator import LLMPromptGenerator
+from app.services.llm_prompt_generator import LLMPromptGenerator, set_server_start_time
 from app.services.upbit_collector import UpbitAPICollector
 from app.services.upbit_storage import UpbitDataStorage
 from app.services.indicators_calculator import IndicatorsCalculator
@@ -36,7 +37,9 @@ from app.services.data_collector_service import (
     collect_ticker_data_periodically,
     collect_candle_data_periodically,
     collect_trades_data_periodically,
-    collect_orderbook_data_periodically
+    collect_orderbook_data_periodically,
+    collect_historical_minute3_candles,
+    collect_historical_day_candles_and_indicators
 )
 from app.services.indicator_service import (
     calculate_indicators_after_candle_collection,
@@ -71,7 +74,10 @@ async def lifespan(app: FastAPI):
     # 시작 시 실행
     logger.info("🚀 백엔드 서버 시작 중...")
     
-
+    # 서버 시작 시간 설정 (LLM 프롬프트 생성에 사용)
+    server_start_time = datetime.now(timezone.utc)
+    set_server_start_time(server_start_time)
+    
     try:
         # DB 연결 테스트
         if not test_connection():
@@ -81,19 +87,85 @@ async def lifespan(app: FastAPI):
         # DB 초기화
         init_db()
 
-        # 가상 거래 계좌 초기화 (최초 실행 시에만 생성됨)
-        logger.info("🔍 가상 거래 계좌 확인 중...")
-        try:
-            db_for_init = SessionLocal()
-            try:
-                results = initialize_all_accounts(db_for_init)
-                success_count = sum(1 for v in results.values() if v)
-                logger.info(f"✅ 가상 거래 계좌 준비 완료 ({success_count}/{len(results)}개)")
-            finally:
-                db_for_init.close()
-        except Exception as init_error:
-            logger.warning(f"⚠️ 계좌 초기화 중 오류 (계속 진행): {init_error}")
+        # ============================================
+        # 테이블 초기화 설정 (필요시 True로 변경)
+        # ============================================
+        RESET_TABLES_ON_STARTUP = True  # True로 변경하면 서버 시작 시 테이블 초기화 실행
 
+        if RESET_TABLES_ON_STARTUP:
+            # 특정 테이블 초기화 및 초기 데이터 설정
+            from app.db.database import SessionLocal, LLMPromptData, LLMTradingSignal, LLMTradingExecution, UpbitAccounts
+            from decimal import Decimal
+
+            db = SessionLocal()
+            try:
+                logger.info("🗑️ 테이블 초기화 시작...")
+
+                # 1. LLM 관련 테이블 초기화
+                deleted_prompt = db.query(LLMPromptData).delete()
+                deleted_signal = db.query(LLMTradingSignal).delete()
+                deleted_execution = db.query(LLMTradingExecution).delete()
+                logger.info(f"✅ LLM 테이블 초기화 완료 (prompt: {deleted_prompt}개, signal: {deleted_signal}개, execution: {deleted_execution}개)")
+
+                # 2. UpbitAccounts 테이블 초기화 및 초기 데이터 추가
+                deleted_accounts = db.query(UpbitAccounts).delete()
+                logger.info(f"✅ UpbitAccounts 테이블 초기화 완료 ({deleted_accounts}개 삭제)")
+
+                # # KRW 잔액 10000000 데이터 추가
+                # initial_account = UpbitAccounts(
+                #     currency="KRW",
+                #     balance=Decimal("10000000"),
+                #     locked=Decimal("0"),
+                #     avg_buy_price=Decimal("0"),
+                #     avg_buy_price_modified=False,
+                #     unit_currency="KRW"
+                # )
+                # db.add(initial_account)
+                db.commit()
+                # logger.info("✅ UpbitAccounts 초기 데이터 추가 완료 (KRW: 10,000,000)")
+
+            except Exception as e:
+                logger.exception(f"❌ 테이블 초기화 중 오류 발생: {e}")
+                db.rollback()
+                raise
+            finally:
+                db.close()
+        else:
+            logger.info("⏭️ 테이블 초기화 건너뜀 (RESET_TABLES_ON_STARTUP = False)")
+
+        # ============================================
+        # LLM 모델 계좌 초기화 설정 (필요시 True로 변경)
+        # ============================================
+        INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP = True  # False로 변경하면 계좌 초기화 건너뜀
+
+        if INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP:
+            from app.services.trading_simulator import TradingSimulator
+            from app.db.database import SessionLocal
+
+            db = SessionLocal()
+            try:
+                logger.info("💰 LLM 모델 계좌 초기화 시작...")
+                simulator = TradingSimulator(db)
+                results = simulator.initialize_all_model_accounts()
+
+                success_count = sum(1 for v in results.values() if v)
+                total_count = len(results)
+
+                if success_count == total_count:
+                    logger.info(f"✅ 모든 LLM 모델 계좌 초기화 완료 ({success_count}/{total_count}개)")
+                else:
+                    logger.warning(f"⚠️ LLM 모델 계좌 초기화 부분 완료 ({success_count}/{total_count}개 성공)")
+                    for model_name, success in results.items():
+                        if not success:
+                            logger.warning(f"  - {model_name}: 실패")
+
+            except Exception as e:
+                logger.exception(f"❌ LLM 모델 계좌 초기화 중 오류 발생: {e}")
+                # 계좌 초기화 실패해도 서버는 계속 실행 (거래 신호 생성 시 자동 초기화됨)
+            finally:
+                db.close()
+        else:
+            logger.info("⏭️ LLM 모델 계좌 초기화 건너뜀 (INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP = False)")
 
     except Exception:
         # exception()을 사용해 스택 트레이스 남김 -> 어떤줄에서 오류났는지)
@@ -101,8 +173,21 @@ async def lifespan(app: FastAPI):
         # FastAPI가 기동되지 않도록 예외 재발생
         raise
 
+    
+    # 3) 과거 데이터 수집 (최초 1회 실행)
+    try:
+        logger.info("📅 과거 데이터 수집 시작...")
+        # 3분봉 과거 데이터 수집
+        await collect_historical_minute3_candles()
+        # 일봉 과거 데이터 수집 및 지표 계산
+        await collect_historical_day_candles_and_indicators()
+        logger.info("✅ 과거 데이터 수집 완료")
+    except Exception as e:
+        logger.exception("❌ 과거 데이터 수집 중 오류 발생. 계속 진행합니다.")
+        # 과거 데이터 수집 실패해도 서버는 계속 실행
 
-    # 3) 백그라운드 태스크 실행
+
+    # 4) 백그라운드 태스크 실행
     try:
         def start_task(coro, name: str):
             task = asyncio.create_task(coro, name=name)
@@ -124,9 +209,7 @@ async def lifespan(app: FastAPI):
 
         start_task(broadcast_wallet_data_periodically(manager), "broadcast_wallet_data")
         start_task(calculate_indicators_periodically(), "calculate_indicators")
-
-        # LLM 거래 의사결정 루프 시작 (60초 간격)
-        start_task(run_trade_decision_loop(), "llm_trade_decision_loop")
+        start_task(run_trade_decision_loop(), "run_trade_decision_loop")
 
         logger.info("✅ 백엔드 서버 시작 완료")
 
@@ -256,19 +339,37 @@ async def get_ticker(db: Session = Depends(get_db)):
     return result
 
 
-@app.get("/api/wallet")
-async def get_wallet_endpoint(db: Session = Depends(get_db)):
-    """
-    지갑 데이터 조회
-    upbit_accounts 테이블에서 데이터를 조회하여 지갑 정보를 반환합니다.
-    4개 사용자의 코인 보유량과 현금 잔액을 조회하고, 현재가를 기준으로 전체 잔액을 계산합니다.
-    """
-    try:
-        wallet_data = await get_wallet_data(db)
-        return wallet_data
-    except Exception as e:
-        logger.error(f"❌ 지갑 데이터 조회 오류: {e}")
-        raise HTTPException(status_code=500, detail=f"지갑 데이터 조회 중 오류 발생: {str(e)}")
+####################################################################################################
+
+# 프론트엔드 부분 app.routers 폴더에서 관리 예정
+from app.routers import SendData, Wandb, Login_jwt, GetUser
+
+## wallet 전송
+app.include_router(SendData.router, prefix="/api") 
+
+## wandb 전송
+app.include_router(Wandb.router, prefix="/api")
+
+## 로그인 jwt
+app.include_router(Login_jwt.router, prefix="/api")
+
+## userdata 전송
+app.include_router(GetUser.router, prefix="/api")
+
+# 보안 이슈로 Post방식 쓸 예
+# @app.get("/api/wallet")
+# async def get_wallet_endpoint(db: Session = Depends(get_db)):
+#     """
+#     지갑 데이터 조회
+#     upbit_accounts 테이블에서 데이터를 조회하여 지갑 정보를 반환합니다.
+#     4개 사용자의 코인 보유량과 현금 잔액을 조회하고, 현재가를 기준으로 전체 잔액을 계산합니다.
+#     """
+#     try:
+#         wallet_data = await get_wallet_data(db)
+#         return wallet_data
+#     except Exception as e:
+#         logger.error(f"❌ 지갑 데이터 조회 오류: {e}")
+#         raise HTTPException(status_code=500, detail=f"지갑 데이터 조회 중 오류 발생: {str(e)}")
 
 
 @app.get("/api/data_stream")
