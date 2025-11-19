@@ -15,6 +15,7 @@ from app.db.database import SessionLocal, UpbitDayCandles, UpbitCandlesMinute3
 from app.services.upbit_collector import UpbitAPICollector
 from app.services.upbit_storage import UpbitDataStorage
 from app.core.schedule_utils import calculate_wait_seconds_until_next_scheduled_time
+from app.core.schedule_utils import calculate_wait_seconds_until_candle_completion
 from app.services.indicator_service import calculate_indicators_for_date_range
 
 logger = logging.getLogger(__name__)
@@ -67,13 +68,21 @@ async def collect_candle_data_periodically():
     while True:
         try:
             # 다음 정3분까지 대기
-            wait_seconds = calculate_wait_seconds_until_next_scheduled_time('minute', 3)
+            # wait_seconds = calculate_wait_seconds_until_next_scheduled_time('minute', 3)
+            # if wait_seconds > 0:
+            #     logger.debug(f"⏰ [3분봉 주기] 다음 정3분까지 {wait_seconds:.1f}초 대기...")
+            #     await asyncio.sleep(wait_seconds)
+            
+            # logger.debug(f"🔍 [3분봉 주기] 정3분 시점 도달, 데이터 수집 시작")
+            wait_seconds = calculate_wait_seconds_until_candle_completion(interval_minutes=3, buffer_seconds=5)
+            
             if wait_seconds > 0:
-                logger.debug(f"⏰ [3분봉 주기] 다음 정3분까지 {wait_seconds:.1f}초 대기...")
+                logger.debug(f"⏰ [3분봉 주기] 다음 캔들 완료 후 수집까지 {wait_seconds:.1f}초 대기...")
                 await asyncio.sleep(wait_seconds)
             
-            logger.debug(f"🔍 [3분봉 주기] 정3분 시점 도달, 데이터 수집 시작")
-            
+            logger.debug(f"🔍 [3분봉 주기] 캔들 완료 시점 도달, 데이터 수집 시작")
+
+
             async with UpbitAPICollector() as collector:
                 db = SessionLocal()
                 try:

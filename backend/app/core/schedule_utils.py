@@ -74,3 +74,53 @@ def calculate_wait_seconds_until_next_scheduled_time(
     wait_seconds = (next_time - now).total_seconds()
     return max(0.0, wait_seconds)  # 음수 방지
 
+def calculate_next_candle_completion_time(interval_minutes: int = 3, buffer_seconds: int = 5) -> datetime:
+    """
+    다음 캔들 완료 시각 계산 (버퍼 시간 포함)
+    
+    Args:
+        interval_minutes: 캔들 간격 (3분봉이면 3)
+        buffer_seconds: 캔들 완료 후 대기 시간 (초) - API가 캔들을 확정하는 시간
+    
+    Returns:
+        datetime: 다음 캔들 완료 후 수집 시각 (UTC)
+    
+    예시:
+        현재: 12:00:30 → 다음 캔들 완료: 12:03:00 → 수집 시각: 12:03:05
+        현재: 12:03:00 → 다음 캔들 완료: 12:06:00 → 수집 시각: 12:06:05
+    """
+    now = datetime.now(timezone.utc)
+    current_minute = now.minute
+    remainder = current_minute % interval_minutes
+    
+    if remainder == 0:
+        # 이미 정3분이면 다음 정3분
+        next_completion = now + timedelta(minutes=interval_minutes)
+    else:
+        # 다음 정3분까지
+        minutes_to_add = interval_minutes - remainder
+        next_completion = now + timedelta(minutes=minutes_to_add)
+    
+    # 정3분 시각으로 정규화
+    next_completion = next_completion.replace(second=0, microsecond=0)
+    
+    # 버퍼 시간 추가 (캔들 완료 후 API가 데이터를 확정하는 시간)
+    collection_time = next_completion + timedelta(seconds=buffer_seconds)
+    
+    return collection_time
+
+def calculate_wait_seconds_until_candle_completion(interval_minutes: int = 3, buffer_seconds: int = 5) -> float:
+    """
+    다음 캔들 완료 후 수집 시각까지의 대기 시간(초) 계산
+    
+    Args:
+        interval_minutes: 캔들 간격
+        buffer_seconds: 캔들 완료 후 대기 시간
+    
+    Returns:
+        float: 대기 시간(초)
+    """
+    now = datetime.now(timezone.utc)
+    next_collection = calculate_next_candle_completion_time(interval_minutes, buffer_seconds)
+    wait_seconds = (next_collection - now).total_seconds()
+    return max(0.0, wait_seconds)

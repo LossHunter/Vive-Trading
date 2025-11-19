@@ -20,88 +20,97 @@ from app.services.indicators_calculator import (
 logger = logging.getLogger(__name__)
 
 
-async def calculate_indicators_for_date_range(db: Session, market: str, start_date: datetime, end_date: datetime):
+async def calculate_indicators_for_date_range(
+    db: Session, 
+    market: str, 
+    start_date: datetime, 
+    end_date: datetime,
+    interval: str = 'both'  # 'day', 'minute3', 'both'
+):
     """
-    특정 날짜 범위에 대한 RSI와 indicators 계산 (일봉과 3분봉 모두 처리)
+    특정 날짜 범위에 대한 RSI와 indicators 계산
     
     Args:
         db: 데이터베이스 세션
         market: 마켓 코드
         start_date: 시작 날짜 (UTC)
         end_date: 종료 날짜 (UTC)
+        interval: 계산할 간격 ('day', 'minute3', 'both')
     
     Note:
         EMA(50) 계산을 위해 최소 50개 데이터가 필요합니다.
     """
     try:
         # 일봉 지표 계산
-        # start_date 조건을 SQL WHERE 절에 추가하여 120일 범위 내 데이터만 조회
-        candles_day = db.query(UpbitDayCandles).filter(
+        if interval in ('day', 'both'):
+            # start_date 조건을 SQL WHERE 절에 추가하여 120일 범위 내 데이터만 조회
+            candles_day = db.query(UpbitDayCandles).filter(
             UpbitDayCandles.market == market,
             UpbitDayCandles.candle_date_time_utc >= start_date,
             UpbitDayCandles.candle_date_time_utc <= end_date
-        ).order_by(UpbitDayCandles.candle_date_time_utc.asc()).limit(2000).all()
-        
-        # 슬라이딩 윈도우를 위해 start_date 이전 데이터도 일부 필요 (최대 50개)
-        # EMA(50) 계산을 위해 과거 데이터 추가 조회
-        candles_day_before = db.query(UpbitDayCandles).filter(
-            UpbitDayCandles.market == market,
-            UpbitDayCandles.candle_date_time_utc < start_date
-        ).order_by(UpbitDayCandles.candle_date_time_utc.desc()).limit(50).all()
-        candles_day_before = list(reversed(candles_day_before))
-        
-        # 전체 캔들 리스트 구성 (과거 데이터 + 범위 내 데이터)
-        all_candles_day = candles_day_before + candles_day
-        
-        if len(all_candles_day) >= 50:
-            target_candles_day = [c for c in all_candles_day if c.candle_date_time_utc >= start_date and c.candle_date_time_utc <= end_date]
+            ).order_by(UpbitDayCandles.candle_date_time_utc.asc()).limit(2000).all()
             
-            if len(target_candles_day) > 0:
-                # 각 날짜별로 지표 계산 (슬라이딩 윈도우 방식)
-                for target_candle in target_candles_day:
-                    target_date = target_candle.candle_date_time_utc
-                    candle_subset = [c for c in all_candles_day if c.candle_date_time_utc <= target_date]
-                    
-                    if len(candle_subset) >= 50:
-                        # RSI(14) 계산 및 저장 (일봉 기준)
-                        await _calculate_and_save_rsi(db, market, target_date, candle_subset, period=14, interval='day')
+            # 슬라이딩 윈도우를 위해 start_date 이전 데이터도 일부 필요 (최대 50개)
+            # EMA(50) 계산을 위해 과거 데이터 추가 조회
+            candles_day_before = db.query(UpbitDayCandles).filter(
+                UpbitDayCandles.market == market,
+                UpbitDayCandles.candle_date_time_utc < start_date
+            ).order_by(UpbitDayCandles.candle_date_time_utc.desc()).limit(50).all()
+            candles_day_before = list(reversed(candles_day_before))
+            
+            # 전체 캔들 리스트 구성 (과거 데이터 + 범위 내 데이터)
+            all_candles_day = candles_day_before + candles_day
+            
+            if len(all_candles_day) >= 50:
+                target_candles_day = [c for c in all_candles_day if c.candle_date_time_utc >= start_date and c.candle_date_time_utc <= end_date]
+                
+                if len(target_candles_day) > 0:
+                    # 각 날짜별로 지표 계산 (슬라이딩 윈도우 방식)
+                    for target_candle in target_candles_day:
+                        target_date = target_candle.candle_date_time_utc
+                        candle_subset = [c for c in all_candles_day if c.candle_date_time_utc <= target_date]
                         
-                        # RSI(7) 및 통합 지표 계산 및 저장 (일봉 기준)
-                        await _calculate_and_save_indicators(db, market, target_date, candle_subset, interval='day')
+                        if len(candle_subset) >= 50:
+                            # RSI(14) 계산 및 저장 (일봉 기준)
+                            await _calculate_and_save_rsi(db, market, target_date, candle_subset, period=14, interval='day')
+                            
+                            # RSI(7) 및 통합 지표 계산 및 저장 (일봉 기준)
+                            await _calculate_and_save_indicators(db, market, target_date, candle_subset, interval='day')
         
         # 3분봉 지표 계산
-        # start_date 조건을 SQL WHERE 절에 추가하여 120일 범위 내 데이터만 조회
-        candles_minute3 = db.query(UpbitCandlesMinute3).filter(
-            UpbitCandlesMinute3.market == market,
-            UpbitCandlesMinute3.candle_date_time_utc >= start_date,
-            UpbitCandlesMinute3.candle_date_time_utc <= end_date
-        ).order_by(UpbitCandlesMinute3.candle_date_time_utc.asc()).limit(2000).all()
-        
-        # 슬라이딩 윈도우를 위해 start_date 이전 데이터도 일부 필요 (최대 50개)
-        candles_minute3_before = db.query(UpbitCandlesMinute3).filter(
-            UpbitCandlesMinute3.market == market,
-            UpbitCandlesMinute3.candle_date_time_utc < start_date
-        ).order_by(UpbitCandlesMinute3.candle_date_time_utc.desc()).limit(50).all()
-        candles_minute3_before = list(reversed(candles_minute3_before))
-        
-        # 전체 캔들 리스트 구성 (과거 데이터 + 범위 내 데이터)
-        all_candles_minute3 = candles_minute3_before + candles_minute3
-        
-        if len(all_candles_minute3) >= 50:
-            target_candles_minute3 = [c for c in all_candles_minute3 if c.candle_date_time_utc >= start_date and c.candle_date_time_utc <= end_date]
+        if interval in ('minute3', 'both'):
+            # start_date 조건을 SQL WHERE 절에 추가하여 120일 범위 내 데이터만 조회
+            candles_minute3 = db.query(UpbitCandlesMinute3).filter(
+                UpbitCandlesMinute3.market == market,
+                UpbitCandlesMinute3.candle_date_time_utc >= start_date,
+                UpbitCandlesMinute3.candle_date_time_utc <= end_date
+            ).order_by(UpbitCandlesMinute3.candle_date_time_utc.asc()).limit(2000).all()
             
-            if len(target_candles_minute3) > 0:
-                # 각 시각별로 지표 계산 (슬라이딩 윈도우 방식)
-                for target_candle in target_candles_minute3:
-                    target_date = target_candle.candle_date_time_utc
-                    candle_subset = [c for c in all_candles_minute3 if c.candle_date_time_utc <= target_date]
-                    
-                    if len(candle_subset) >= 50:
-                        # RSI(14) 계산 및 저장 (3분봉 기준)
-                        await _calculate_and_save_rsi(db, market, target_date, candle_subset, period=14, interval='minute3')
+            # 슬라이딩 윈도우를 위해 start_date 이전 데이터도 일부 필요 (최대 50개)
+            candles_minute3_before = db.query(UpbitCandlesMinute3).filter(
+                UpbitCandlesMinute3.market == market,
+                UpbitCandlesMinute3.candle_date_time_utc < start_date
+            ).order_by(UpbitCandlesMinute3.candle_date_time_utc.desc()).limit(50).all()
+            candles_minute3_before = list(reversed(candles_minute3_before))
+            
+            # 전체 캔들 리스트 구성 (과거 데이터 + 범위 내 데이터)
+            all_candles_minute3 = candles_minute3_before + candles_minute3
+            
+            if len(all_candles_minute3) >= 50:
+                target_candles_minute3 = [c for c in all_candles_minute3 if c.candle_date_time_utc >= start_date and c.candle_date_time_utc <= end_date]
+                
+                if len(target_candles_minute3) > 0:
+                    # 각 시각별로 지표 계산 (슬라이딩 윈도우 방식)
+                    for target_candle in target_candles_minute3:
+                        target_date = target_candle.candle_date_time_utc
+                        candle_subset = [c for c in all_candles_minute3 if c.candle_date_time_utc <= target_date]
                         
-                        # RSI(7) 및 통합 지표 계산 및 저장 (3분봉 기준)
-                        await _calculate_and_save_indicators(db, market, target_date, candle_subset, interval='minute3')
+                        if len(candle_subset) >= 50:
+                            # RSI(14) 계산 및 저장 (3분봉 기준)
+                            await _calculate_and_save_rsi(db, market, target_date, candle_subset, period=14, interval='minute3')
+                            
+                            # RSI(7) 및 통합 지표 계산 및 저장 (3분봉 기준)
+                            await _calculate_and_save_indicators(db, market, target_date, candle_subset, interval='minute3')
         
         logger.debug(f"✅ {market} 날짜 범위 지표 계산 완료 ({start_date.date()} ~ {end_date.date()})")
     except Exception as e:
@@ -322,9 +331,12 @@ async def calculate_indicators_after_candle_collection(markets: List[str]):
 
 async def calculate_indicators_periodically():
     """
-    기술 지표 주기적 계산
+    기술 지표 주기적 계산 (일봉만)
     캔들 데이터 수집과 독립적으로 주기적으로 기술 지표를 계산합니다.
-    매일 자정(UTC)에 실행되어 과거 120일치 데이터를 재계산합니다.
+    매일 자정(UTC)에 실행되어 과거 120일치 일봉 데이터를 재계산합니다.
+    
+    Note:
+        3분봉 지표는 실시간으로 calculate_indicators_after_candle_collection에서 계산됩니다.
     """
     while True:
         try:
@@ -333,10 +345,10 @@ async def calculate_indicators_periodically():
             next_midnight = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
             wait_seconds = (next_midnight - now_utc).total_seconds()
             
-            logger.info(f"⏰ 다음 지표 계산까지 {wait_seconds/3600:.1f}시간 대기...")
+            logger.info(f"⏰ 다음 일봉 지표 계산까지 {wait_seconds/3600:.1f}시간 대기...")
             await asyncio.sleep(wait_seconds)
             
-            logger.info("📊 주기적 기술 지표 계산 시작...")
+            logger.info("📊 주기적 일봉 지표 계산 시작...")
             
             db = SessionLocal()
             try:
@@ -347,12 +359,13 @@ async def calculate_indicators_periodically():
                 
                 for market in UpbitAPIConfig.MAIN_MARKETS:
                     try:
-                        await calculate_indicators_for_date_range(db, market, one_hundred_twenty_days_ago, today_utc)
+                        # 일봉만 계산 (3분봉은 실시간으로 계산됨)
+                        await calculate_indicators_for_date_range(db, market, one_hundred_twenty_days_ago, today_utc, interval='day')
                     except Exception as e:
-                        logger.error(f"❌ {market} 주기적 지표 계산 오류: {e}")
+                        logger.error(f"❌ {market} 주기적 일봉 지표 계산 오류: {e}")
                         continue
                 
-                logger.info("✅ 주기적 기술 지표 계산 완료")
+                logger.info("✅ 주기적 일봉 지표 계산 완료")
             finally:
                 db.close()
         except asyncio.CancelledError:
