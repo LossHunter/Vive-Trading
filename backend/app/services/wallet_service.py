@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, TYPE_CHECKING
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc,func,and_
 from app.core.config import UpbitAPIConfig, LLMAccountConfig
 from app.db.database import SessionLocal, UpbitAccounts, UpbitTicker, LLMTradingSignal
 from app.core.schedule_utils import calculate_wait_seconds_until_next_scheduled_time
@@ -421,6 +421,8 @@ async def save_account_information(db: Session, target_date: Optional[datetime] 
         
         # 현재 시각 (UTC)
         current_time = datetime.now(timezone.utc)
+
+
         
         for wallet_item in wallet_data:
             try:
@@ -459,6 +461,106 @@ async def save_account_information(db: Session, target_date: Optional[datetime] 
         logger.error(f"❌ AccountInformation 저장 중 오류 발생: {e}")
         db.rollback()
         return 0
+
+async def get_account_information_list(db: Session, days: int = 30) -> List[Dict]:
+    """
+    AccountInformation 테이블에서 30일치 데이터 조회
+    get_wallet_data_list_other와 동일한 형식으로 반환
+    
+    Args:
+        db: 데이터베이스 세션
+        days: 조회할 일수 (기본: 30일)
+    
+    Returns:
+        List[Dict]: 평탄화된 지갑 데이터 리스트 (get_wallet_data_list_other와 동일한 형식)
+    """
+    try:
+        # 최근 N일치 데이터 조회
+        # cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        
+        # records = db.query(AccountInformation).filter(
+        #     AccountInformation.created_at >= cutoff_date
+        # ).order_by(AccountInformation.created_at.asc()).all()
+        
+        # 최근 n일치 데이터 조회
+        # sub = (
+        #     db.query(
+        #         func.date_trunc('day', AccountInformation.created_at).label("day"),
+        #         func.max(AccountInformation.created_at).label("max_time")
+        #     )
+        #     .group_by(func.date_trunc('day', AccountInformation.created_at))
+        #     .order_by(func.date_trunc('day', AccountInformation.created_at).desc())
+        #     .limit(30)
+        #     .subquery()
+        # )
+
+        # records = (
+        #     db.query(AccountInformation)
+        #     .join(sub, AccountInformation.created_at == sub.c.max_time)
+        #     .order_by(AccountInformation.created_at.asc())
+        #     .all()
+        # )
+
+
+        #정시 기준 매 1시간마다의 마지막 데이터.
+        sub = (
+            db.query(
+                func.date_trunc('hour', AccountInformation.created_at).label("hour"),
+                func.max(AccountInformation.created_at).label("max_time")
+            )
+            .group_by(func.date_trunc('hour', AccountInformation.created_at))
+            .order_by(func.date_trunc('hour', AccountInformation.created_at).asc())
+            .limit(30)
+            .subquery()
+        )
+
+        records = (
+            db.query(AccountInformation)
+            .join(sub, AccountInformation.created_at == sub.c.max_time)
+            .order_by(AccountInformation.created_at.asc())
+            .all()
+        )
+
+        user_colors_map = {
+            1: "#3b82f6",  # GPT
+            2: "#22c55e",  # Gemini
+            3: "#f59e0b",  # Grok
+            4: "#ef4444",  # DeepSeek
+        }
+
+        result = []
+        for record in records:
+            # created_at을 YYYYMMDDHHmm 형식으로 변환
+            time_int = int(record.created_at.strftime("%Y%m%d%H%M"))
+            
+            # userId에 해당하는 colors 가져오기
+            user_id = int(record.user_id) if record.user_id and record.user_id.isdigit() else 0
+            colors = user_colors_map.get(user_id, "")  # userId에 해당하는 color, 없으면 빈 문자열
+            
+
+            result.append({
+                "userId": int(record.user_id) if record.user_id and record.user_id.isdigit() else 0,
+                "username": record.username or "",
+                "usemodel": record.model_name or record.username or "",
+                "colors": colors,  # account_information에는 없음
+                "logo": record.logo or "",
+                "time": time_int,
+                "why": record.why or "",
+                "position": record.position or "",
+                "bit": float(record.btc) if record.btc else 0.0,  # btc를 bit로 변환
+                "eth": float(record.eth) if record.eth else 0.0,
+                "doge": float(record.doge) if record.doge else 0.0,
+                "sol": float(record.sol) if record.sol else 0.0,
+                "xrp": float(record.xrp) if record.xrp else 0.0,
+                "non": float(record.krw) if record.krw else 0.0,  # krw를 non으로 변환
+                "total": float(record.total) if record.total else 0.0
+            })
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ AccountInformation 조회 오류: {e}")
+        return []
 
 
 async def collect_account_information_periodically():
@@ -511,7 +613,7 @@ async def broadcast_wallet_data_periodically(manager: "ConnectionManager"):
             
             db = SessionLocal()
             try:
-                wallet_data = await get_wallet_data_list_other(db)
+                wallet_data = await get_account_information_list(db)
                 
                 await manager.broadcast(json.dumps({
                     "type": "wallet",
