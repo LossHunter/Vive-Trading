@@ -32,3 +32,6 @@ Thumbs.db
 # Docker
 *.swp
 *.swo
+
+# Debug scripts
+backend/debug_candle_monitor.py

@@ -110,6 +110,7 @@ CREATE TABLE "llm_trading_signal" (
   "account_id" uuid,
   "coin" text NOT NULL,
   "signal" text NOT NULL,
+  "current_price" numeric(20,8),
   "stop_loss" numeric(20,8),
   "profit_target" numeric(20,8),
   "quantity" numeric(30,10),
@@ -119,6 +120,29 @@ CREATE TABLE "llm_trading_signal" (
   "invalidation_condition" text,
   "justification" text,
   "created_at" timestamptz DEFAULT (now())
+);
+
+CREATE TABLE "llm_trading_execution" (
+  "id" bigserial PRIMARY KEY,
+  "signal_id" bigint NOT NULL,
+  "account_id" uuid,
+  "coin" text NOT NULL,
+  "signal_type" text NOT NULL,
+  "execution_status" text NOT NULL,
+  "failure_reason" text,
+  "intended_price" numeric(20,8),
+  "executed_price" numeric(20,8),
+  "price_slippage" numeric(10,4),
+  "intended_quantity" numeric(30,10),
+  "executed_quantity" numeric(30,10),
+  "balance_before" numeric(30,10),
+  "balance_after" numeric(30,10),
+  "signal_created_at" timestamptz,
+  "executed_at" timestamptz DEFAULT (now()),
+  "time_delay" numeric(10,3),
+  "profit_target" numeric(20,8),
+  "stop_loss" numeric(20,8),
+  "notes" text
 );
 
 CREATE TABLE "upbit_trades" (
@@ -169,6 +193,12 @@ CREATE UNIQUE INDEX "ux_indicators_market_time" ON "upbit_indicators" ("market",
 CREATE INDEX "idx_llm_prompt_generated" ON "llm_prompt_data" ("generated_at");
 
 CREATE UNIQUE INDEX "ux_accounts_account_currency" ON "upbit_accounts" ("account_id", "currency");
+
+CREATE INDEX "idx_execution_signal_id" ON "llm_trading_execution" ("signal_id");
+
+CREATE INDEX "idx_execution_account_id" ON "llm_trading_execution" ("account_id");
+
+CREATE INDEX "idx_execution_executed_at" ON "llm_trading_execution" ("executed_at");
 
 COMMENT ON TABLE "upbit_markets" IS 'Upbit 거래가능 마켓 기본정보';
 
@@ -451,3 +481,50 @@ COMMENT ON COLUMN "llm_trading_signal"."invalidation_condition" IS '무효화 �
 COMMENT ON COLUMN "llm_trading_signal"."justification" IS '거래 근거 설명';
 
 COMMENT ON COLUMN "llm_trading_signal"."created_at" IS '신호 생성 시각 (UTC)';
+
+COMMENT ON TABLE "llm_trading_execution" IS 'LLM 거래 실행 기록 테이블';
+
+COMMENT ON COLUMN "llm_trading_execution"."id" IS '내부 식별자 (자동 증가)';
+
+COMMENT ON COLUMN "llm_trading_execution"."signal_id" IS '거래 신호 ID (llm_trading_signal FK)';
+
+COMMENT ON COLUMN "llm_trading_execution"."account_id" IS '계정 ID';
+
+COMMENT ON COLUMN "llm_trading_execution"."coin" IS '코인 심볼 (예: BTC, ETH)';
+
+COMMENT ON COLUMN "llm_trading_execution"."signal_type" IS '신호 타입 (buy_to_enter, sell_to_exit, hold)';
+
+COMMENT ON COLUMN "llm_trading_execution"."execution_status" IS '실행 상태 (success, failed, skipped)';
+
+COMMENT ON COLUMN "llm_trading_execution"."failure_reason" IS '실패 사유';
+
+COMMENT ON COLUMN "llm_trading_execution"."intended_price" IS 'LLM이 판단한 가격 (신호 생성 시각)';
+
+COMMENT ON COLUMN "llm_trading_execution"."executed_price" IS '실제 체결 가격 (실행 시각)';
+
+COMMENT ON COLUMN "llm_trading_execution"."price_slippage" IS '슬리피지 (%) = (executed - intended) / intended * 100';
+
+COMMENT ON COLUMN "llm_trading_execution"."intended_quantity" IS '의도한 수량';
+
+COMMENT ON COLUMN "llm_trading_execution"."executed_quantity" IS '실제 체결 수량';
+
+COMMENT ON COLUMN "llm_trading_execution"."balance_before" IS '거래 전 잔액';
+
+COMMENT ON COLUMN "llm_trading_execution"."balance_after" IS '거래 후 잔액';
+
+COMMENT ON COLUMN "llm_trading_execution"."signal_created_at" IS '신호 생성 시각';
+
+COMMENT ON COLUMN "llm_trading_execution"."executed_at" IS '실행 시각';
+
+COMMENT ON COLUMN "llm_trading_execution"."time_delay" IS '실행 지연 시간 (초)';
+
+COMMENT ON COLUMN "llm_trading_execution"."profit_target" IS '목표가';
+
+COMMENT ON COLUMN "llm_trading_execution"."stop_loss" IS '손절가';
+
+COMMENT ON COLUMN "llm_trading_execution"."notes" IS '비고';
+
+COMMENT ON COLUMN "llm_trading_signal"."current_price" IS '신호 생성 시점의 현재가';
+
+ALTER TABLE "llm_trading_signal" 
+ADD COLUMN "current_price" numeric(20,8) COMMENT '신호 생성 시점의 현재가';

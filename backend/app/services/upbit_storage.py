@@ -48,8 +48,12 @@ class UpbitDataStorage:
             return None
         
         try:
-            # Upbit API는 ISO 8601 형식 사용 (예: "2024-01-01T00:00:00+00:00")
-            return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+            dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+
+            # 핵심: -9시간 적용 (KST → UTC 변환)
+            dt = dt - timedelta(hours=9)
+            return dt
+            
         except Exception as e:
             logger.warning(f"⚠️ 날짜 파싱 실패: {dt_str} - {e}")
             return None
@@ -195,7 +199,7 @@ class UpbitDataStorage:
         skipped_count = 0
         error_count = 0
         
-        logger.debug(f"🔍 [저장] {market} 3분봉: {len(candles_data)}개 데이터 저장 시작")
+        logger.info(f"🔍 [저장] {market} 3분봉: {len(candles_data)}개 데이터 저장 시작")
         
         # 입력 데이터를 시간순으로 정렬 (오래된 것부터)
         # candle_date_time_utc를 기준으로 정렬
@@ -207,7 +211,7 @@ class UpbitDataStorage:
         for idx, candle in enumerate(sorted_candles, 1):
             try:
                 candle_time_str = candle.get("candle_date_time_utc")
-                logger.debug(f"🔍 [저장] {market} 3분봉 #{idx}/{len(sorted_candles)}: 시간={candle_time_str}")
+                logger.info(f"🔍 [저장] {market} 3분봉 #{idx}/{len(sorted_candles)}: 시간={candle_time_str}")
                 
                 # 가격 데이터 파싱
                 trade_price = self._parse_numeric(candle.get("trade_price"))
@@ -267,10 +271,10 @@ class UpbitDataStorage:
                 if not existing:
                     self.db.add(candle_obj)
                     saved_count += 1
-                    logger.debug(f"✅ [저장] {market} 3분봉 #{idx}: 저장됨 (시간: {candle_obj.candle_date_time_utc}, prev_closing_price: {prev_closing_price})")
+                    logger.info(f"✅ [저장] {market} 3분봉 #{idx}: 저장됨 (시간: {candle_obj.candle_date_time_utc}, prev_closing_price: {prev_closing_price})")
                 else:
                     skipped_count += 1
-                    logger.debug(f"⏭️ [저장] {market} 3분봉 #{idx}: 중복 건너뜀 (시간: {candle_obj.candle_date_time_utc})")
+                    logger.info(f"⏭️ [저장] {market} 3분봉 #{idx}: 중복 건너뜀 (시간: {candle_obj.candle_date_time_utc})")
             except Exception as e:
                 error_count += 1
                 logger.error(f"❌ [저장] {market} 3분봉 #{idx} 저장 실패: {candle.get('candle_date_time_utc', 'N/A')} - {e}")
@@ -281,6 +285,12 @@ class UpbitDataStorage:
             logger.debug(f"🔍 [저장] {market} 3분봉: 저장={saved_count}개, 중복={skipped_count}개, 오류={error_count}개 (총 {len(sorted_candles)}개)")
             if saved_count > 0:
                 logger.info(f"✅ [저장] {market} 3분봉: {saved_count}개 저장 완료 (중복 {skipped_count}개 제외)")
+            elif skipped_count > 0:
+                logger.info(f"⏭️ [저장] {market} 3분봉: 모든 데이터 중복 (저장 0개, 중복 {skipped_count}개)")
+            elif error_count > 0:
+                logger.warning(f"⚠️ [저장] {market} 3분봉: 저장 실패 (저장 0개, 오류 {error_count}개)")
+            else:
+                logger.warning(f"⚠️ [저장] {market} 3분봉: 저장 결과 없음 (저장 0개, 중복 0개, 오류 0개)")
         except Exception as e:
             self.db.rollback()
             logger.error(f"❌ [저장] {market} 3분봉 커밋 실패: {e}")

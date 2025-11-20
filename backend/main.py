@@ -7,46 +7,43 @@ import asyncio
 import json
 import logging
 import threading
-from datetime import datetime
-from typing import List, Dict, Set, Optional
+from datetime import datetime, timezone
+from typing import List, Dict, Optional
 from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from sqlalchemy import true
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 
 from app.api.endpoints import llm, market, trading
 from app.rag.document_loader import initialize_rag_data
-from app.core.config import ServerConfig, UpbitAPIConfig, DataCollectionConfig, IndicatorsConfig, WalletConfig, OrderExecutionConfig
-from app.db.database import get_db, init_db, test_connection, SessionLocal, LLMPromptData, LLMTradingSignal
-from app.services.llm_prompt_generator import LLMPromptGenerator
+from app.core.config import ServerConfig, UpbitAPIConfig, DataCollectionConfig, IndicatorsConfig, WalletConfig
+from app.db.database import get_db, init_db, test_connection, SessionLocal
 from app.services.upbit_collector import UpbitAPICollector
 from app.services.upbit_storage import UpbitDataStorage
 from app.services.indicators_calculator import IndicatorsCalculator
 from app.services.vllm_service import run_trade_decision_loop
+from app.services.llm_prompt_generator import set_server_start_time
 from app.services.connection_manager import manager
+from app.services.data_collector_service import (
+    collect_ticker_data_periodically,
+    collect_candle_data_periodically,
+    collect_trades_data_periodically,
+    collect_orderbook_data_periodically,
+    collect_historical_minute3_candles,
+    collect_historical_day_candles_and_indicators
+)
 from app.services.wallet_service import (
     get_wallet_data,
     get_wallet_data_30days,
     broadcast_wallet_data_periodically
 )
-from app.services.order_execution_service import execute_signal_orders
-from app.services.data_collector_service import (
-    collect_ticker_data_periodically,
-    collect_candle_data_periodically,
-    collect_trades_data_periodically,
-    collect_orderbook_data_periodically
-)
 from app.services.indicator_service import (
     calculate_indicators_after_candle_collection,
     calculate_indicators_periodically
 )
-from app.services.vllm_model_registry import refresh_available_models
-from sqlalchemy import desc
-
-from app.services.trading_simulator import initialize_all_accounts
-
 
 # 로깅 설정
 logging.basicConfig( # 로그출력 형식
@@ -55,14 +52,12 @@ logging.basicConfig( # 로그출력 형식
 )
 logger = logging.getLogger(__name__)
 
-
 # 데이터 수집 태스크 관리
 collection_tasks: List[asyncio.Task] = []
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    refresh_available_models()
     """
     애플리케이션 생명주기 관리
     시작 시 데이터베이스 초기화 및 데이터 수집 시작
@@ -71,6 +66,9 @@ async def lifespan(app: FastAPI):
     # 시작 시 실행
     logger.info("🚀 백엔드 서버 시작 중...")
     
+    # 서버 시작 시간 설정 (LLM 프롬프트 생성에 사용)
+    server_start_time = datetime.now(timezone.utc)
+    set_server_start_time(server_start_time)
 
     try:
         # DB 연결 테스트
@@ -81,28 +79,106 @@ async def lifespan(app: FastAPI):
         # DB 초기화
         init_db()
 
-        # 가상 거래 계좌 초기화 (최초 실행 시에만 생성됨)
-        logger.info("🔍 가상 거래 계좌 확인 중...")
-        try:
-            db_for_init = SessionLocal()
+        # ============================================
+        # 테이블 초기화 설정 (필요시 True로 변경)
+        # ============================================
+        RESET_TABLES_ON_STARTUP = False  # True로 변경하면 서버 시작 시 테이블 초기화 실행
+        
+        if RESET_TABLES_ON_STARTUP:
+            # 특정 테이블 초기화 및 초기 데이터 설정
+            from app.db.database import SessionLocal, LLMPromptData, LLMTradingSignal, LLMTradingExecution, UpbitAccounts
+            from decimal import Decimal
+            
+            db = SessionLocal()
             try:
-                results = initialize_all_accounts(db_for_init)
-                success_count = sum(1 for v in results.values() if v)
-                logger.info(f"✅ 가상 거래 계좌 준비 완료 ({success_count}/{len(results)}개)")
+                logger.info("🗑️ 테이블 초기화 시작...")
+                
+                # 1. LLM 관련 테이블 초기화
+                deleted_prompt = db.query(LLMPromptData).delete()
+                deleted_signal = db.query(LLMTradingSignal).delete()
+                deleted_execution = db.query(LLMTradingExecution).delete()
+                logger.info(f"✅ LLM 테이블 초기화 완료 (prompt: {deleted_prompt}개, signal: {deleted_signal}개, execution: {deleted_execution}개)")
+                
+                # 2. UpbitAccounts 테이블 초기화 및 초기 데이터 추가
+                deleted_accounts = db.query(UpbitAccounts).delete()
+                logger.info(f"✅ UpbitAccounts 테이블 초기화 완료 ({deleted_accounts}개 삭제)")
+                
+                # # KRW 잔액 10000000 데이터 추가
+                # initial_account = UpbitAccounts(
+                #     currency="KRW",
+                #     balance=Decimal("10000000"),
+                #     locked=Decimal("0"),
+                #     avg_buy_price=Decimal("0"),
+                #     avg_buy_price_modified=False,
+                #     unit_currency="KRW"
+                # )
+                # db.add(initial_account)
+                db.commit()
+                # logger.info("✅ UpbitAccounts 초기 데이터 추가 완료 (KRW: 10,000,000)")
+                
+            except Exception as e:
+                logger.exception(f"❌ 테이블 초기화 중 오류 발생: {e}")
+                db.rollback()
+                raise
             finally:
-                db_for_init.close()
-        except Exception as init_error:
-            logger.warning(f"⚠️ 계좌 초기화 중 오류 (계속 진행): {init_error}")
+                db.close()
+        else:
+            logger.info("⏭️ 테이블 초기화 건너뜀 (RESET_TABLES_ON_STARTUP = False)")
 
-
+        # ============================================
+        # LLM 모델 계좌 초기화 설정 (필요시 True로 변경)
+        # ============================================
+        INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP = False  # False로 변경하면 계좌 초기화 건너뜀
+        
+        if INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP:
+            from app.services.trading_simulator import TradingSimulator
+            from app.db.database import SessionLocal
+            
+            db = SessionLocal()
+            try:
+                logger.info("💰 LLM 모델 계좌 초기화 시작...")
+                simulator = TradingSimulator(db)
+                results = simulator.initialize_all_model_accounts()
+                
+                success_count = sum(1 for v in results.values() if v)
+                total_count = len(results)
+                
+                if success_count == total_count:
+                    logger.info(f"✅ 모든 LLM 모델 계좌 초기화 완료 ({success_count}/{total_count}개)")
+                else:
+                    logger.warning(f"⚠️ LLM 모델 계좌 초기화 부분 완료 ({success_count}/{total_count}개 성공)")
+                    for model_name, success in results.items():
+                        if not success:
+                            logger.warning(f"  - {model_name}: 실패")
+                            
+            except Exception as e:
+                logger.exception(f"❌ LLM 모델 계좌 초기화 중 오류 발생: {e}")
+                # 계좌 초기화 실패해도 서버는 계속 실행 (거래 신호 생성 시 자동 초기화됨)
+            finally:
+                db.close()
+        else:
+            logger.info("⏭️ LLM 모델 계좌 초기화 건너뜀 (INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP = False)")
+   
     except Exception:
         # exception()을 사용해 스택 트레이스 남김 -> 어떤줄에서 오류났는지)
         logger.exception("❌ 서버 시작 중 치명적 오류 발생. 서버 기동을 중단합니다.")
         # FastAPI가 기동되지 않도록 예외 재발생
         raise
 
+    
+    # 3) 과거 데이터 수집 (최초 1회 실행)
+    try:
+        logger.info("📅 과거 데이터 수집 시작...")
+        # 3분봉 과거 데이터 수집
+        await collect_historical_minute3_candles()
+        # 일봉 과거 데이터 수집 및 지표 계산
+        await collect_historical_day_candles_and_indicators()
+        logger.info("✅ 과거 데이터 수집 완료")
+    except Exception as e:
+        logger.exception("❌ 과거 데이터 수집 중 오류 발생. 계속 진행합니다.")
+        # 과거 데이터 수집 실패해도 서버는 계속 실행
 
-    # 3) 백그라운드 태스크 실행
+    # 4) 백그라운드 태스크 실행
     try:
         def start_task(coro, name: str):
             task = asyncio.create_task(coro, name=name)
@@ -124,9 +200,7 @@ async def lifespan(app: FastAPI):
 
         start_task(broadcast_wallet_data_periodically(manager), "broadcast_wallet_data")
         start_task(calculate_indicators_periodically(), "calculate_indicators")
-
-        # LLM 거래 의사결정 루프 시작 (60초 간격)
-        start_task(run_trade_decision_loop(), "llm_trade_decision_loop")
+        start_task(run_trade_decision_loop(), "run_trade_decision_loop")
 
         logger.info("✅ 백엔드 서버 시작 완료")
 
@@ -161,7 +235,7 @@ async def lifespan(app: FastAPI):
             else:
                 logger.info(f"ℹ️ 태스크 정상 종료: {name}")
 
-        logger.info("✅ 백엔드 서버 종료 완료")
+        logger.info("✅ 백엔드 서버 시작 완료")
 
 
 # FastAPI 애플리케이션 생성
@@ -206,7 +280,6 @@ api_router.include_router(trading.router, prefix="/trading", tags=["Trading"])
 # FastAPI 앱에 메인 라우터 포함
 app.include_router(api_router, prefix="/api")
 
-
 # ==================== REST API 엔드포인트 ====================
 
 @app.get("/")
@@ -217,6 +290,13 @@ async def root():
         "status": "running",
         "version": "1.0.0"
     }
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    """Favicon 엔드포인트: 브라우저 favicon 요청 처리"""
+    from fastapi.responses import Response
+    return Response(status_code=204)  # No Content
 
 
 @app.get("/api/health")
@@ -699,401 +779,6 @@ async def calculate_all_indicators_batch_endpoint(
         raise HTTPException(status_code=500, detail=f"기술 지표 일괄 계산 중 오류 발생: {str(e)}")
 
 
-# ==================== LLM 관련 API ====================
-# LLM 프롬프트 생성 및 거래 신호 저장 관련 API
-
-# --- LLM 프롬프트 생성 API ---
-
-class PromptGenerationRequest(BaseModel):
-    """프롬프트 생성 요청 모델"""
-    trading_start_time: Optional[str] = None  # ISO 8601 형식 (예: "2024-01-01T00:00:00+00:00")
-
-
-@app.post("/api/llm/generate-prompt")
-async def generate_llm_prompt(
-    request: PromptGenerationRequest = Body(None),
-    db: Session = Depends(get_db)
-):
-    """
-    LLM 프롬프트 생성 API
-    기존 DB 데이터를 기반으로 LLM에게 보낼 프롬프트를 생성하고 저장합니다.
-    
-    요청 본문 예시:
-    {
-        "trading_start_time": "2024-01-01T00:00:00+00:00"  # 선택사항
-    }
-    """
-    try:
-        trading_start_time = None
-        if request is not None and request.trading_start_time is not None:
-            try:
-                trading_start_time = datetime.fromisoformat(request.trading_start_time.replace('Z', '+00:00'))
-            except Exception as e:
-                logger.warning(f"⚠️ 거래 시작 시각 파싱 실패: {e}")
-        
-        generator = LLMPromptGenerator(db, trading_start_time)
-        prompt_data = generator.generate_and_save()
-        
-        if prompt_data:
-            return {
-                "success": True,
-                "message": "LLM 프롬프트 생성 완료",
-                "data": {
-                    "id": prompt_data.id,
-                    "generated_at": prompt_data.generated_at.isoformat() if prompt_data.generated_at else None,
-                    "trading_minutes": prompt_data.trading_minutes,
-                    "prompt_text": prompt_data.prompt_text,
-                    "market_data": prompt_data.market_data_json,
-                    "account_data": prompt_data.account_data_json,
-                    "indicator_config": prompt_data.indicator_config_json
-                }
-            }
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail="프롬프트 생성 실패"
-            )
-    
-    except Exception as e:
-        logger.error(f"❌ LLM 프롬프트 생성 API 오류: {e}")
-        raise HTTPException(status_code=500, detail=f"프롬프트 생성 중 오류 발생: {str(e)}")
-
-@app.get("/api/llm/prompt/latest")
-async def get_latest_prompt(db: Session = Depends(get_db)):
-    """
-    최신 LLM 프롬프트 데이터 조회 API
-    가장 최근에 저장된 프롬프트 데이터를 조회합니다.
-    """
-    try:
-        prompt_data = db.query(LLMPromptData).order_by(
-            desc(LLMPromptData.generated_at)
-        ).first()
-        
-        if prompt_data:
-            return {
-                "success": True,
-                "data": {
-                    "id": prompt_data.id,
-                    "generated_at": prompt_data.generated_at.isoformat() if prompt_data.generated_at else None,
-                    "trading_minutes": prompt_data.trading_minutes,
-                    "prompt_text": prompt_data.prompt_text,  # None일 수 있음 (나중에 파싱하여 생성)
-                    "market_data": prompt_data.market_data_json,
-                    "account_data": prompt_data.account_data_json,
-                    "indicator_config": prompt_data.indicator_config_json
-                }
-            }
-        else:
-            raise HTTPException(
-                status_code=404,
-                detail="저장된 프롬프트 데이터가 없습니다"
-            )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ 최신 프롬프트 조회 API 오류: {e}")
-        raise HTTPException(status_code=500, detail=f"프롬프트 조회 중 오류 발생: {str(e)}")
-
-@app.get("/api/llm/prompt/{prompt_id}")
-async def get_prompt_by_id(prompt_id: int, db: Session = Depends(get_db)):
-    """
-    특정 ID의 LLM 프롬프트 데이터 조회 API
-    """
-    try:
-        prompt_data = db.query(LLMPromptData).filter(
-            LLMPromptData.id == prompt_id
-        ).first()
-        
-        if prompt_data:
-            return {
-                "success": True,
-                "data": {
-                    "id": prompt_data.id,
-                    "generated_at": prompt_data.generated_at.isoformat() if prompt_data.generated_at else None,
-                    "trading_minutes": prompt_data.trading_minutes,
-                    "prompt_text": prompt_data.prompt_text,  # None일 수 있음 (나중에 파싱하여 생성)
-                    "market_data": prompt_data.market_data_json,
-                    "account_data": prompt_data.account_data_json,
-                    "indicator_config": prompt_data.indicator_config_json
-                }
-            }
-        else:
-            raise HTTPException(
-                status_code=404,
-                detail=f"ID {prompt_id}의 프롬프트 데이터를 찾을 수 없습니다"
-            )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ 프롬프트 조회 API 오류: {e}")
-        raise HTTPException(status_code=500, detail=f"프롬프트 조회 중 오류 발생: {str(e)}")
-
-@app.get("/api/llm/prompt/{prompt_id}/text")
-async def get_prompt_text_by_id(prompt_id: int, db: Session = Depends(get_db)):
-    """
-    특정 ID의 LLM 프롬프트 텍스트 조회 API
-    저장된 프롬프트 텍스트를 반환합니다. 없으면 생성하여 반환합니다.
-    """
-    try:
-        prompt_data = db.query(LLMPromptData).filter(
-            LLMPromptData.id == prompt_id
-        ).first()
-        
-        if not prompt_data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"ID {prompt_id}의 프롬프트 데이터를 찾을 수 없습니다"
-            )
-        
-        # 저장된 프롬프트 텍스트가 있으면 직접 반환
-        if prompt_data.prompt_text:
-            prompt_text = prompt_data.prompt_text
-        else:
-            # 프롬프트 텍스트가 없으면 생성 (하위 호환성)
-            if not prompt_data.market_data_json or not prompt_data.account_data_json:
-                raise HTTPException(
-                    status_code=400,
-                    detail="프롬프트 데이터가 불완전합니다"
-                )
-            
-            prompt_text = LLMPromptGenerator.generate_prompt_text_from_data(
-                market_data=prompt_data.market_data_json,
-                account_data=prompt_data.account_data_json,
-                trading_minutes=prompt_data.trading_minutes or 0
-            )
-        
-        return {
-            "success": True,
-            "data": {
-                "id": prompt_data.id,
-                "trading_minutes": prompt_data.trading_minutes,
-                "prompt_text": prompt_text
-            }
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ 프롬프트 텍스트 조회 API 오류: {e}")
-        raise HTTPException(status_code=500, detail=f"프롬프트 텍스트 조회 중 오류 발생: {str(e)}")
-
-# --- LLM 거래 신호 저장 API ---
-
-class LLMTradingSignalRequest(BaseModel):
-    """LLM 거래 신호 저장 요청 모델"""
-    prompt_id: int  # 프롬프트 ID
-    stop_loss: Optional[float] = None
-    signal: str  # buy_to_enter, sell_to_exit, hold 등
-    leverage: Optional[float] = None
-    risk_usd: Optional[float] = None
-    profit_target: Optional[float] = None
-    quantity: Optional[float] = None
-    invalidation_condition: Optional[str] = None
-    justification: Optional[str] = None
-    confidence: Optional[float] = None
-    coin: str  # BTC, ETH 등
-
-@app.post("/api/llm/signal/save")
-async def save_llm_trading_signal(
-    request: LLMTradingSignalRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    LLM 거래 신호 저장 API
-    LLM이 생성한 거래 신호를 데이터베이스에 저장합니다.
-    
-    요청 본문 예시:
-    {
-        "prompt_id": 21,
-        "stop_loss": 107200.0,
-        "signal": "buy_to_enter",
-        "leverage": 2,
-        "risk_usd": 1000.0,
-        "profit_target": 109000.0,
-        "quantity": 0.0185,
-        "invalidation_condition": "Price breaks below 107000...",
-        "justification": "BTC shows strong bullish momentum...",
-        "confidence": 0.75,
-        "coin": "BTC"
-    }
-    """
-    try:
-        # 프롬프트 ID 유효성 검사
-        prompt_data = db.query(LLMPromptData).filter(
-            LLMPromptData.id == request.prompt_id
-        ).first()
-        
-        if not prompt_data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"프롬프트 ID {request.prompt_id}를 찾을 수 없습니다"
-            )
-        
-        # LLM 거래 신호 저장
-        trading_signal = LLMTradingSignal(
-            prompt_id=request.prompt_id,
-            account_id=request.account_id,
-            coin=request.coin,
-            signal=request.signal,
-            stop_loss=request.stop_loss,
-            profit_target=request.profit_target,
-            quantity=request.quantity,
-            leverage=request.leverage,
-            risk_usd=request.risk_usd,
-            confidence=request.confidence,
-            invalidation_condition=request.invalidation_condition,
-            justification=request.justification
-        )
-        
-        db.add(trading_signal)
-        db.commit()
-        db.refresh(trading_signal)
-        
-        logger.info(f"✅ LLM 거래 신호 저장 완료 (ID: {trading_signal.id}, 프롬프트 ID: {request.prompt_id}, 코인: {request.coin})")
-        
-        return {
-            "success": True,
-            "message": "LLM 거래 신호 저장 완료",
-            "data": {
-                "id": trading_signal.id,
-                "prompt_id": trading_signal.prompt_id,
-                "coin": trading_signal.coin,
-                "signal": trading_signal.signal,
-                "created_at": trading_signal.created_at.isoformat() if trading_signal.created_at else None
-            }
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ LLM 거래 신호 저장 오류: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"거래 신호 저장 중 오류 발생: {str(e)}")
-
-@app.get("/api/llm/signal/{signal_id}")
-async def get_llm_trading_signal(signal_id: int, db: Session = Depends(get_db)):
-    """
-    특정 ID의 LLM 거래 신호 조회 API
-    """
-    try:
-        signal = db.query(LLMTradingSignal).filter(
-            LLMTradingSignal.id == signal_id
-        ).first()
-        
-        if not signal:
-            raise HTTPException(
-                status_code=404,
-                detail=f"ID {signal_id}의 거래 신호를 찾을 수 없습니다"
-            )
-        
-        return {
-            "success": True,
-            "data": {
-                "id": signal.id,
-                "prompt_id": signal.prompt_id,
-                "account_id": signal.account_id,
-                "coin": signal.coin,
-                "signal": signal.signal,
-                "stop_loss": float(signal.stop_loss) if signal.stop_loss else None,
-                "profit_target": float(signal.profit_target) if signal.profit_target else None,
-                "quantity": float(signal.quantity) if signal.quantity else None,
-                "leverage": float(signal.leverage) if signal.leverage else None,
-                "risk_usd": float(signal.risk_usd) if signal.risk_usd else None,
-                "confidence": float(signal.confidence) if signal.confidence else None,
-                "invalidation_condition": signal.invalidation_condition,
-                "justification": signal.justification,
-                "created_at": signal.created_at.isoformat() if signal.created_at else None
-            }
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ LLM 거래 신호 조회 API 오류: {e}")
-        raise HTTPException(status_code=500, detail=f"거래 신호 조회 중 오류 발생: {str(e)}")
-
-@app.get("/api/llm/signal/prompt/{prompt_id}")
-async def get_llm_trading_signals_by_prompt(prompt_id: int, db: Session = Depends(get_db)):
-    """
-    특정 프롬프트 ID에 대한 모든 LLM 거래 신호 조회 API
-    """
-    try:
-        signals = db.query(LLMTradingSignal).filter(
-            LLMTradingSignal.prompt_id == prompt_id
-        ).order_by(LLMTradingSignal.created_at.desc()).all()
-        
-        result = []
-        for signal in signals:
-            result.append({
-                "id": signal.id,
-                "prompt_id": signal.prompt_id,
-                "account_id": signal.account_id,
-                "coin": signal.coin,
-                "signal": signal.signal,
-                "stop_loss": float(signal.stop_loss) if signal.stop_loss else None,
-                "profit_target": float(signal.profit_target) if signal.profit_target else None,
-                "quantity": float(signal.quantity) if signal.quantity else None,
-                "leverage": float(signal.leverage) if signal.leverage else None,
-                "risk_usd": float(signal.risk_usd) if signal.risk_usd else None,
-                "confidence": float(signal.confidence) if signal.confidence else None,
-                "invalidation_condition": signal.invalidation_condition,
-                "justification": signal.justification,
-                "created_at": signal.created_at.isoformat() if signal.created_at else None
-            })
-        
-        return {
-            "success": True,
-            "prompt_id": prompt_id,
-            "count": len(result),
-            "data": result
-        }
-    
-    except Exception as e:
-        logger.error(f"❌ LLM 거래 신호 조회 API 오류: {e}")
-        raise HTTPException(status_code=500, detail=f"거래 신호 조회 중 오류 발생: {str(e)}")
-
-# ============================================================================
-# [임시 테스트용] 주문 체결 API
-# ============================================================================
-# ⚠️ 주의: 이 API는 임시 테스트용입니다.
-# 나중에 실제 외부 시스템으로 교체할 때 이 엔드포인트를 제거하거나 비활성화할 수 있습니다.
-# 비활성화 방법: config.py에서 OrderExecutionConfig.ENABLE_ORDER_EXECUTION = False 설정
-# ============================================================================
-@app.post("/api/order/execute")
-async def execute_orders(
-    prompt_id: Optional[int] = Body(None, description="프롬프트 ID (None이면 최신 signal만 체결)"),
-    db: Session = Depends(get_db)
-):
-    """
-    [임시 테스트용] 주문 체결 API
-    저장된 LLM 거래 신호를 기반으로 가상의 주문을 체결하고 upbit_accounts를 업데이트합니다.
-    
-    ⚠️ 주의: 이 API는 임시 테스트용입니다.
-    실제 외부 시스템으로 교체할 때 이 엔드포인트를 제거하거나 비활성화할 수 있습니다.
-    
-    Args:
-        prompt_id: 프롬프트 ID (None이면 최신 signal만 체결)
-    
-    Returns:
-        dict: 체결 결과 통계
-    """
-    # 주문 체결 기능이 비활성화되어 있으면 403 반환
-    if not OrderExecutionConfig.ENABLE_ORDER_EXECUTION:
-        raise HTTPException(
-            status_code=403,
-            detail="주문 체결 기능이 비활성화되어 있습니다. (임시 테스트용 기능)"
-        )
-    
-    try:
-        results = execute_signal_orders(db, prompt_id)
-        return results
-    except Exception as e:
-        logger.error(f"❌ 주문 체결 API 오류: {e}")
-        raise HTTPException(status_code=500, detail=f"주문 체결 중 오류 발생: {str(e)}")
-    
-
-
 # ==================== WebSocket 엔드포인트 ====================
 
 @app.websocket(ServerConfig.WEBSOCKET_PATH)
@@ -1110,7 +795,7 @@ async def websocket_endpoint(websocket: WebSocket):
             json.dumps({
                 "type": "connection",
                 "message": "WebSocket 연결 성공",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }),
             websocket
         )
@@ -1128,7 +813,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     await manager.send_personal_message(
                         json.dumps({
                             "type": "pong",
-                            "timestamp": datetime.utcnow().isoformat()
+                            "timestamp": datetime.now(timezone.utc).isoformat()
                         }),
                         websocket
                     )
@@ -1138,7 +823,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         json.dumps({
                             "type": "subscribed",
                             "message": "구독 완료",
-                            "timestamp": datetime.utcnow().isoformat()
+                            "timestamp": datetime.now(timezone.utc).isoformat()
                         }),
                         websocket
                     )

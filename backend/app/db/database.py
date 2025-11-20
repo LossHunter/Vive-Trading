@@ -241,6 +241,7 @@ class LLMTradingSignal(Base):
     account_id = Column(UUID(as_uuid=False), comment="계정 식별자")
     coin = Column(Text, nullable=False, comment="코인 심볼 (예: BTC, ETH)")
     signal = Column(Text, nullable=False, comment="거래 신호 (예: buy_to_enter, sell_to_exit, hold)")
+    current_price = Column(Numeric(20, 8), comment="신호 생성 시점의 현재가")
     stop_loss = Column(Numeric(20, 8), comment="손절가")
     profit_target = Column(Numeric(20, 8), comment="익절가")
     quantity = Column(Numeric(30, 10), comment="거래 수량")
