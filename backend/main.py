@@ -50,6 +50,8 @@ from sqlalchemy import desc
 
 from app.services.trading_simulator import initialize_all_accounts
 
+from app.services.wallet_service import collect_account_information_periodically
+
 
 # 로깅 설정
 logging.basicConfig( # 로그출력 형식
@@ -197,6 +199,7 @@ async def lifespan(app: FastAPI):
         if DataCollectionConfig.ENABLE_ORDERBOOK:
             start_task(collect_orderbook_data_periodically(), "collect_orderbook_data")
 
+        start_task(collect_account_information_periodically(), "collect_account_information")
         start_task(broadcast_wallet_data_periodically(manager), "broadcast_wallet_data")
         start_task(calculate_indicators_periodically(), "calculate_indicators")
         start_task(run_trade_decision_loop(), "run_trade_decision_loop")

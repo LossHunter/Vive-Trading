@@ -123,6 +123,24 @@ CREATE TABLE "llm_trading_signal" (
   "created_at" timestamptz DEFAULT (now())
 );
 
+CREATE TABLE "account_information" (
+  "id" bigserial PRIMARY KEY,
+  "user_id" text,
+  "username" text,
+  "model_name" text,
+  "logo" text,
+  "why" text,
+  "position" text NOT NULL,
+  "btc" numeric(30,10),
+  "eth" numeric(30,10),
+  "doge" numeric(30,10),
+  "sol" numeric(30,10),
+  "xrp" numeric(30,10),
+  "krw" numeric(30,10),
+  "total" numeric(30,10),
+  "created_at" timestamptz DEFAULT (now())
+);
+
 CREATE TABLE "llm_trading_execution" (
   "id" bigserial PRIMARY KEY,
   "prompt_id" bigint NOT NULL,
@@ -514,5 +532,38 @@ COMMENT ON COLUMN "llm_trading_signal"."current_price" IS '신호 생성 시점�
 
 COMMENT ON COLUMN "llm_trading_signal"."created_at" IS '신호 생성 시각 (UTC)';
 
-ALTER TABLE "llm_trading_signal" 
-ADD COLUMN "current_price" numeric(20,8) COMMENT '신호 생성 시점의 현재가'
+COMMENT ON COLUMN "llm_trading_signal"."thinking" IS 'LLM의 사고 과정 (Chain of Thought, CoT)';
+
+COMMENT ON TABLE "account_information" IS '계정 정보 테이블';
+
+COMMENT ON COLUMN "account_information"."id" IS '내부 식별자 (자동 증가)';
+
+COMMENT ON COLUMN "account_information"."user_id" IS '사용자 ID (계정 식별자)';
+
+COMMENT ON COLUMN "account_information"."username" IS '사용자 이름';
+
+COMMENT ON COLUMN "account_information"."model_name" IS '모델 이름';
+
+COMMENT ON COLUMN "account_information"."logo" IS '로고 파일명';
+
+COMMENT ON COLUMN "account_information"."why" IS '매수, 매도 사유';
+
+COMMENT ON COLUMN "account_information"."position" IS '거래 포지션 (예: buy_to_enter, sell_to_exit, hold)';
+
+COMMENT ON COLUMN "account_information"."btc" IS '보유 비트코인 수량';
+
+COMMENT ON COLUMN "account_information"."eth" IS '보유 이더리움 수량';
+
+COMMENT ON COLUMN "account_information"."doge" IS '보유 도지코인 수량';
+
+COMMENT ON COLUMN "account_information"."sol" IS '보유 솔라나 수량';
+
+COMMENT ON COLUMN "account_information"."xrp" IS '보유 리플 수량';
+
+COMMENT ON COLUMN "account_information"."krw" IS '보유 원화 잔액';
+
+COMMENT ON COLUMN "account_information"."total" IS '총 자산 금액 (KRW 기준)';
+
+COMMENT ON COLUMN "account_information"."created_at" IS '레코드 생성 시각 (UTC)';
+
+

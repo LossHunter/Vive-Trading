@@ -74,7 +74,7 @@ class TradingSimulator:
                 currency = market.split("-")[1]
                 coin_account = UpbitAccounts(
                     account_id=account_id_str,
-                    currency=market,
+                    currency=currency,
                     balance=Decimal("0"),
                     locked=Decimal("0"),
                     avg_buy_price=Decimal("0"),

@@ -13,6 +13,9 @@ from sqlalchemy import desc
 from app.core.config import UpbitAPIConfig, LLMAccountConfig
 from app.db.database import SessionLocal, UpbitAccounts, UpbitTicker, LLMTradingSignal
 from app.core.schedule_utils import calculate_wait_seconds_until_next_scheduled_time
+from decimal import Decimal
+from app.db.database import AccountInformation
+
 
 if TYPE_CHECKING:
     from app.services.connection_manager import ConnectionManager
@@ -184,18 +187,37 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
     wallet_data = []
     
     for user in users:
-        # 전체에서 최신 collected_at 찾기 (모든 account_id 중)
-        if account_latest_collected:
-            latest_collected_at = max(account_latest_collected.values())
-        else:
-            latest_collected_at = None
-        
-        # 최신 collected_at의 데이터만 필터링 (account_id와 collected_at이 일치하는 것)
-        # collected_at을 초 단위로 반올림하여 비교
+
+        # userId를 account_id로 변환
+        user_account_id = get_account_id_from_user_id(user["userId"])
+
+        # 해당 사용자의 account_id에 대한 최신 collected_at 찾기
+        user_latest_collected = None
+        for (acc_id, collected_at_key, currency), account in grouped_accounts.items():
+            if acc_id == user_account_id and account.collected_at:
+                collected_at_rounded = account.collected_at.replace(microsecond=0)
+            if user_latest_collected is None or collected_at_rounded > user_latest_collected:
+                user_latest_collected = collected_at_rounded
+    
+    # 해당 사용자의 account_id와 최신 collected_at의 데이터만 필터링
         accounts = [
             acc for (acc_id, collected_at_key, currency), acc in grouped_accounts.items()
-            if acc.collected_at and acc.collected_at.replace(microsecond=0) == latest_collected_at
+            if acc_id == user_account_id 
+            and acc.collected_at 
+            and acc.collected_at.replace(microsecond=0) == user_latest_collected
         ]
+        # # 전체에서 최신 collected_at 찾기 (모든 account_id 중)
+        # if account_latest_collected:
+        #     latest_collected_at = max(account_latest_collected.values())
+        # else:
+        #     latest_collected_at = None
+        
+        # # 최신 collected_at의 데이터만 필터링 (account_id와 collected_at이 일치하는 것)
+        # # collected_at을 초 단위로 반올림하여 비교
+        # accounts = [
+        #     acc for (acc_id, collected_at_key, currency), acc in grouped_accounts.items()
+        #     if acc.collected_at and acc.collected_at.replace(microsecond=0) == latest_collected_at
+        # ]
         
         # 코인 수량 초기화
         coin_balances = {
@@ -374,6 +396,101 @@ async def get_wallet_data_30days(db: Session) -> List[Dict]:
         all_wallet_data.extend(daily_data)
     
     return all_wallet_data
+
+async def save_account_information(db: Session, target_date: Optional[datetime] = None) -> int:
+    """
+    AccountInformation 테이블에 지갑 데이터 저장
+    get_wallet_data를 사용하여 지갑 데이터를 조회하고 AccountInformation 테이블에 저장합니다.
+    
+    Args:
+        db: 데이터베이스 세션
+        target_date: 조회할 날짜 (None이면 현재 날짜)
+    
+    Returns:
+        int: 저장된 레코드 수
+    """
+    try:
+        # 지갑 데이터 조회
+        wallet_data = await get_wallet_data(db, target_date)
+        
+        if not wallet_data:
+            logger.warning("⚠️ 저장할 지갑 데이터가 없습니다.")
+            return 0
+        
+        saved_count = 0
+        
+        # 현재 시각 (UTC)
+        current_time = datetime.now(timezone.utc)
+        
+        for wallet_item in wallet_data:
+            try:
+                # AccountInformation 레코드 생성
+                account_info = AccountInformation(
+                    user_id=str(wallet_item["userId"]),
+                    username=wallet_item["username"],
+                    model_name=wallet_item["username"],
+                    logo=wallet_item["logo"],
+                    why=wallet_item.get("why", ""),
+                    position=wallet_item.get("position", "hold"),
+                    btc=Decimal(str(wallet_item["btc"])),
+                    eth=Decimal(str(wallet_item["eth"])),
+                    doge=Decimal(str(wallet_item["doge"])),
+                    sol=Decimal(str(wallet_item["sol"])),
+                    xrp=Decimal(str(wallet_item["xrp"])),
+                    krw=Decimal(str(wallet_item["non"])),  # non은 KRW 잔액
+                    total=Decimal(str(wallet_item["total"])),
+                    created_at=current_time
+                )
+                
+                db.add(account_info)
+                saved_count += 1
+                
+            except Exception as e:
+                logger.error(f"❌ AccountInformation 저장 실패 (userId={wallet_item.get('userId')}): {e}")
+                continue
+        
+        # 일괄 커밋
+        db.commit()
+        
+        logger.info(f"✅ AccountInformation 저장 완료: {saved_count}개 레코드")
+        return saved_count
+        
+    except Exception as e:
+        logger.error(f"❌ AccountInformation 저장 중 오류 발생: {e}")
+        db.rollback()
+        return 0
+
+
+async def collect_account_information_periodically():
+    """
+    AccountInformation 주기적 수집
+    매 분 0초에 지갑 데이터를 조회하여 AccountInformation 테이블에 저장합니다.
+    """
+    while True:
+        try:
+            # 다음 정분까지 대기
+            wait_seconds = calculate_wait_seconds_until_next_scheduled_time('minute', 1)
+            if wait_seconds > 0:
+                await asyncio.sleep(wait_seconds)
+            
+            db = SessionLocal()
+            try:
+                saved_count = await save_account_information(db)
+                if saved_count > 0:
+                    logger.info(f"✅ AccountInformation 수집 완료: {saved_count}개 레코드 저장")
+                else:
+                    logger.debug("⏭️ AccountInformation 수집: 저장할 데이터 없음")
+            finally:
+                db.close()
+        
+        except asyncio.CancelledError:
+            logger.info("🛑 AccountInformation 수집 중지")
+            break
+        except Exception as e:
+            logger.error(f"❌ AccountInformation 수집 오류: {e}")
+            await asyncio.sleep(60)
+
+
 
 
 async def broadcast_wallet_data_periodically(manager: "ConnectionManager"):
