@@ -29,8 +29,8 @@ def Mapping(wallet_data):
         datainput[userid].append(data)
     
     ## 날짜 역순
-    for key, val in datainput.items():
-        datainput[key] = list(reversed(val))
+    # for key, val in datainput.items():
+    #     datainput[key] = list(reversed(val))
         
     senddata = list(datainput.values())
     return senddata

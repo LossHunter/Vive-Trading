@@ -332,8 +332,8 @@ class TradingSimulator:
             "signal_type": signal.signal,
             "signal_created_at": signal.created_at,
             "intended_price": intended_price,
-            "profit_target": signal.profit_target,
-            "stop_loss": signal.stop_loss,
+            #"profit_target": signal.profit_target,
+            #"stop_loss": signal.stop_loss,
         }
 
         try:
@@ -517,7 +517,7 @@ class TradingSimulator:
                     executed_quantity=quantity,
                     balance_after=krw_after,
                     execution_status="success",
-                    notes=f"매수 완료: {quantity:.8f} {signal.coin} @ {current_price:,.2f} KRW"
+                    #notes=f"매수 완료: {quantity:.8f} {signal.coin} @ {current_price:,.2f} KRW"
                 )
                 logger.info("-" * 80)
                 return True
@@ -627,7 +627,7 @@ class TradingSimulator:
                     executed_quantity=quantity,
                     balance_after=coin_after,
                     execution_status="success",
-                    notes=f"매도 완료: {quantity:.8f} {signal.coin} @ {current_price:,.2f} KRW. {', '.join(notes_parts) if notes_parts else ''}"
+                    #notes=f"매도 완료: {quantity:.8f} {signal.coin} @ {current_price:,.2f} KRW. {', '.join(notes_parts) if notes_parts else ''}"
                 )
                 logger.info("-" * 80)
                 return True
@@ -781,7 +781,7 @@ class TradingSimulator:
                 balance_before=balance_before,
                 balance_after=balance_after,
                 signal_created_at=signal_created_at,
-                time_delay=Decimal(str(time_delay)) if time_delay else None,
+              #  time_delay=Decimal(str(time_delay)) if time_delay else None,
             )
             
             self.db.add(execution)
