@@ -9,7 +9,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.core.config import UpbitAPIConfig
-from app.db.database import SessionLocal, LlmPromptData, LlmTradingSignal
+from app.db.database import SessionLocal, LLMPromptData, LLMTradingSignal
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def _load_account_payload(raw) -> list[dict]:
     return list(raw)
 
 
-def _build_wallet_rows(prompt: LlmPromptData, signals: list[LlmTradingSignal]) -> list[dict]:
+def _build_wallet_rows(prompt: LLMPromptData, signals: list[LLMTradingSignal]) -> list[dict]:
     """프롬프트와 시그널을 기반으로 지갑 데이터 생성"""
     account_rows = _load_account_payload(prompt.account_data_json)  # 사용자별 잔고 데이터
     
@@ -131,11 +131,11 @@ def _build_wallet_rows(prompt: LlmPromptData, signals: list[LlmTradingSignal]) -
     return wallets
 
 
-async def get_wallet_data(db: Session, target_prompt: LlmPromptData | None = None) -> list[dict]:
+async def get_wallet_data(db: Session, target_prompt: LLMPromptData | None = None) -> list[dict]:
     """가장 최신 프롬프트 기반으로 5명 지갑 데이터 생성"""
     prompt = target_prompt or (  # target_prompt가 있으면 그대로 사용
-        db.query(LlmPromptData)  # 없으면 LlmPromptData에서 가장 최신 기록 가져옴
-        .order_by(LlmPromptData.generated_at.desc(), LlmPromptData.id.desc())
+        db.query(LLMPromptData)  # 없으면 LLMPromptData에서 가장 최신 기록 가져옴
+        .order_by(LLMPromptData.generated_at.desc(), LLMPromptData.id.desc())
         .first()
     )
     if not prompt:  # 프롬프트 없으면 기본 USER_TEMPLATE 반환
@@ -143,8 +143,8 @@ async def get_wallet_data(db: Session, target_prompt: LlmPromptData | None = Non
         return [row.copy() for row in USERS_TEMPLATE]
 
     signals = (  # 프롬프트에 연결된 트레이딩 시그널 목록 가져옴
-        db.query(LlmTradingSignal)
-        .filter(LlmTradingSignal.prompt_id == prompt.id)
+        db.query(LLMTradingSignal)
+        .filter(LLMTradingSignal.prompt_id == prompt.id)
         .all()
     )
     return _build_wallet_rows(prompt, signals)
@@ -152,19 +152,19 @@ async def get_wallet_data(db: Session, target_prompt: LlmPromptData | None = Non
 
 async def get_wallet_data_30days(db: Session) -> list[dict]:
     """최근 30개의 프롬프트를 이용해 지갑 데이터 반환: 최근 30일 동안의 지갑 상태 변화 보기위함"""
-    prompts = (  # LlmPromptData 테이블에서 가장 최근에 생성된 30개의 프롬프트 가져옴
-        db.query(LlmPromptData)
-        .order_by(LlmPromptData.generated_at.desc(), LlmPromptData.id.desc())
+    prompts = (  # LLMPromptData 테이블에서 가장 최근에 생성된 30개의 프롬프트 가져옴
+        db.query(LLMPromptData)
+        .order_by(LLMPromptData.generated_at.desc(), LLMPromptData.id.desc())
         .limit(30)
         .all()
     )
     if not prompts:
         return [row.copy() for row in USERS_TEMPLATE]
 
-    signal_map: dict[int, list[LlmTradingSignal]] = defaultdict(list)
+    signal_map: dict[int, list[LLMTradingSignal]] = defaultdict(list)
     signals = (
-        db.query(LlmTradingSignal)
-        .filter(LlmTradingSignal.prompt_id.in_([p.id for p in prompts]))
+        db.query(LLMTradingSignal)
+        .filter(LLMTradingSignal.prompt_id.in_([p.id for p in prompts]))
         .all()
     )
     for sig in signals:  # prompt_id 기준으로 시그널 묶기

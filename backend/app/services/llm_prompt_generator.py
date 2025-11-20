@@ -22,57 +22,6 @@ from app.core.schedule_utils import calculate_wait_seconds_until_next_scheduled_
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 전역 서버 시작 시간 (서버 시작 시 설정됨)
-_server_start_time: Optional[datetime] = None
-
-
-def set_server_start_time(start_time: datetime) -> None:
-    """
-    서버 시작 시간 설정 (전역 변수)
-    
-    Args:
-        start_time: 서버 시작 시각 (UTC)
-    """
-    global _server_start_time
-    _server_start_time = start_time
-    logger.info(f"서버 시작 시간 설정: {start_time}")
-
-
-def get_server_start_time() -> Optional[datetime]:
-    """
-    서버 시작 시간 조회
-    
-    Returns:
-        datetime | None: 서버 시작 시각 (UTC), 설정되지 않았으면 None
-    """
-    return _server_start_time
-
-
-# 전역 서버 시작 시간 (서버 시작 시 설정됨)
-_server_start_time: Optional[datetime] = None
-
-
-def set_server_start_time(start_time: datetime) -> None:
-    """
-    서버 시작 시간 설정 (전역 변수)
-    
-    Args:
-        start_time: 서버 시작 시각 (UTC)
-    """
-    global _server_start_time
-    _server_start_time = start_time
-    logger.info(f"서버 시작 시간 설정: {start_time}")
-
-
-def get_server_start_time() -> Optional[datetime]:
-    """
-    서버 시작 시간 조회
-    
-    Returns:
-        datetime | None: 서버 시작 시각 (UTC), 설정되지 않았으면 None
-    """
-    return _server_start_time
-
 
 class LLMPromptGenerator:
     """LLM 프롬프트 생성 클래스"""
@@ -87,16 +36,11 @@ class LLMPromptGenerator:
         """
         self.db = db
         if trading_start_time is None:
-            # 전역 서버 시작 시간이 설정되어 있으면 사용, 없으면 기본값 사용
-            global _server_start_time
-            if _server_start_time is not None:
-                self.trading_start_time = _server_start_time
-            else:
-                # 기본값: 현재 시각에서 2399분 전
-                self.trading_start_time = datetime.now(timezone.utc) - timedelta(minutes=2399)
+            # 기본값: 현재 시각에서 2399분 전
+            self.trading_start_time = datetime.now(timezone.utc) - timedelta(minutes=2399)
         else:
             self.trading_start_time = trading_start_time
-
+    
     def calculate_trading_minutes(self) -> int:
         """거래 시작 후 경과 시간(분) 계산"""
         elapsed = datetime.now(timezone.utc) - self.trading_start_time
@@ -546,7 +490,7 @@ class LLMPromptGenerator:
             
             # Intraday series
             intraday = coin_data.get('intraday_series', {})
-            prompt += "**Intraday series (by 3-minute, oldest → latest):**\n\n"
+            prompt += "**Intraday series (by minute, oldest → latest):**\n\n"
             prompt += f"Mid prices: {intraday.get('mid_prices', [])}\n\n"
             prompt += f"EMA indicators (20‑period): {intraday.get('ema_indicators', [])}\n\n"
             prompt += f"MACD indicators: {intraday.get('macd_indicators', [])}\n\n"
@@ -555,7 +499,7 @@ class LLMPromptGenerator:
             
             # Longer-term context
             longer_term = coin_data.get('longer_term_context', {})
-            prompt += "**Longer‑term context (1‑day timeframe):**\n\n"
+            prompt += "**Longer‑term context (4‑hour timeframe):**\n\n"
             prompt += f"20‑Period EMA: {longer_term.get('ema20', 'N/A')} vs. "
             prompt += f"50‑Period EMA: {longer_term.get('ema50', 'N/A')}\n\n"
             prompt += f"3‑Period ATR: {longer_term.get('atr3', 'N/A')} vs. "

@@ -10,9 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, TYPE_CHECKING
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from uuid import UUID
-
-from app.core.config import WalletConfig, UpbitAPIConfig, LLMAccountConfig
+from app.core.config import UpbitAPIConfig, LLMAccountConfig
 from app.db.database import SessionLocal, UpbitAccounts, UpbitTicker, LLMTradingSignal
 from app.core.schedule_utils import calculate_wait_seconds_until_next_scheduled_time
 
@@ -22,29 +20,44 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# def get_account_id_for_user(user_id: int) -> str:
-#     """
-#     userId를 account_id(UUID)로 변환
+def get_account_id_from_user_id(user_id: int) -> str:
+    """
+    userId를 account_id로 변환
+    account_id 형식: 00000000-0000-0000-0000-000000000001 (마지막 숫자가 userId)
     
-#     Args:
-#         user_id: 사용자 ID (1-4)
+    Args:
+        user_id: 사용자 ID (1, 2, 3, 4)
     
-#     Returns:
-#         str: UUID 형식의 account_id
-#     """
-#     # userId와 모델 매핑
-#     user_model_map = {
-#         1: "openai/gpt-oss-120b",
-#         2: "google/gemma-3-27b-it",
-#         3: "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8",
-#         4: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
-#     }
+    Returns:
+        str: account_id (UUID 형식)
+    """
     
-#     model_name = user_model_map.get(user_id)
-#     if not model_name:
-#         raise ValueError(f"Invalid user_id: {user_id}")
+    return f"00000000-0000-0000-0000-{user_id:012d}"
+
+
+def get_account_id_for_user(user_id: int) -> str:
+    """
+    userId를 account_id(UUID)로 변환
     
-#     return LLMAccountConfig.get_account_id_for_model(model_name)
+    Args:
+        user_id: 사용자 ID (1-4)
+    
+    Returns:
+        str: UUID 형식의 account_id
+    """
+    # userId와 모델 매핑
+    user_model_map = {
+        1: "openai/gpt-oss-120b",
+        2: "google/gemma-3-27b-it",
+        3: "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8",
+        4: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+    }
+    
+    model_name = user_model_map.get(user_id)
+    if not model_name:
+        raise ValueError(f"Invalid user_id: {user_id}")
+    
+    return LLMAccountConfig.get_account_id_for_model(model_name)
 
 
 async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -> List[Dict]:
@@ -143,7 +156,7 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
     
     # 각 사용자별 최신 llm_trading_signal 조회
     # account_id와 userId 매핑: account_id의 마지막 숫자가 userId
-    from app.services.order_execution_service import get_account_id_from_user_id
+ #   from app.services.order_execution_service import get_account_id_from_user_id
     
     user_signals = {}
     for user in users:
