@@ -48,8 +48,12 @@ class UpbitDataStorage:
             return None
         
         try:
-            # Upbit API는 ISO 8601 형식 사용 (예: "2024-01-01T00:00:00+00:00")
-            return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+            dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+
+            # 핵심: -9시간 적용 (KST → UTC 변환)
+            dt = dt - timedelta(hours=9)
+            return dt
+            
         except Exception as e:
             logger.warning(f"⚠️ 날짜 파싱 실패: {dt_str} - {e}")
             return None
