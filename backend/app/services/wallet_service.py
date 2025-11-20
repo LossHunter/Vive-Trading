@@ -22,29 +22,29 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def get_account_id_for_user(user_id: int) -> str:
-    """
-    userId를 account_id(UUID)로 변환
+# def get_account_id_for_user(user_id: int) -> str:
+#     """
+#     userId를 account_id(UUID)로 변환
     
-    Args:
-        user_id: 사용자 ID (1-4)
+#     Args:
+#         user_id: 사용자 ID (1-4)
     
-    Returns:
-        str: UUID 형식의 account_id
-    """
-    # userId와 모델 매핑
-    user_model_map = {
-        1: "openai/gpt-oss-120b",
-        2: "google/gemma-3-27b-it",
-        3: "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8",
-        4: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
-    }
+#     Returns:
+#         str: UUID 형식의 account_id
+#     """
+#     # userId와 모델 매핑
+#     user_model_map = {
+#         1: "openai/gpt-oss-120b",
+#         2: "google/gemma-3-27b-it",
+#         3: "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8",
+#         4: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+#     }
     
-    model_name = user_model_map.get(user_id)
-    if not model_name:
-        raise ValueError(f"Invalid user_id: {user_id}")
+#     model_name = user_model_map.get(user_id)
+#     if not model_name:
+#         raise ValueError(f"Invalid user_id: {user_id}")
     
-    return LLMAccountConfig.get_account_id_for_model(model_name)
+#     return LLMAccountConfig.get_account_id_for_model(model_name)
 
 
 async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -> List[Dict]:
