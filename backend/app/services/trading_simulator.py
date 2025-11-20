@@ -310,7 +310,7 @@ class TradingSimulator:
         """
 
         execution_record = {
-            "signal_id": signal.id,
+            "prompt_id": signal.id,
             "account_id": signal.account_id,
             "coin": signal.coin,
             "signal_type": signal.signal,
@@ -324,7 +324,7 @@ class TradingSimulator:
             # 1. account_id 검증
             logger.info("[1단계] account_id 검증 중...")
             if not signal.account_id:
-                logger.error(f"❌ account_id가 없음! (signal_id={signal.id})")
+                logger.error(f"❌ account_id가 없음! (prompt_id={signal.id})")
                 self._save_execution_record(
                     **execution_record,
                     execution_status="failed",
@@ -419,7 +419,7 @@ class TradingSimulator:
             
         except Exception as e:
             logger.error("="*80)
-            logger.error(f"❌ [거래 시뮬레이션 예외 발생] signal_id={signal.id}")
+            logger.error(f"❌ [거래 시뮬레이션 예외 발생] prompt_id={signal.id}")
             logger.error(f"  예외 타입: {type(e).__name__}")
             logger.error(f"  예외 메시지: {str(e)}")
             logger.error("="*80, exc_info=True)
@@ -574,7 +574,6 @@ class TradingSimulator:
             if avg_buy_price > 0:
                 profit_loss = (current_price - avg_buy_price) * quantity
                 profit_loss_percent = ((current_price - avg_buy_price) / avg_buy_price * 100) if avg_buy_price > 0 else 0
-                
                 if signal.profit_target and current_price >= float(signal.profit_target):
                     notes_parts.append(f"목표가 달성 ({current_price:,.2f} >= {float(signal.profit_target):,.2f})")
                 elif signal.stop_loss and current_price <= float(signal.stop_loss):
@@ -600,14 +599,12 @@ class TradingSimulator:
                 logger.info("  ✅ 매도 성공!")
                 logger.info(f"    - 수량: {quantity:.8f} {signal.coin}")
                 logger.info(f"    - 가격: {current_price:,.2f} KRW")
-                
                 total_revenue = quantity * current_price
                 logger.info(f"    - 총액: {total_revenue:,.2f} KRW")
-                
                 if notes_parts:
                     logger.info(f"    - 사유: {', '.join(notes_parts)}")
                 
-                # 성공 기록 저장
+               # 성공 기록 저장
                 logger.info("  llm_trading_execution 테이블에 성공 기록 저장 중...")
                 self._save_execution_record(
                     **execution_record,
@@ -722,7 +719,7 @@ class TradingSimulator:
     
     def _save_execution_record(
         self,
-        signal_id: int,
+        prompt_id: int,
         account_id: Optional[UUID],
         coin: str,
         signal_type: str,
@@ -730,21 +727,17 @@ class TradingSimulator:
         signal_created_at: Optional[datetime] = None,
         intended_price: Optional[Decimal] = None,
         executed_price: Optional[Decimal] = None,
-        price_slippage: Optional[Decimal] = None,
         intended_quantity: Optional[Decimal] = None,
         executed_quantity: Optional[Decimal] = None,
         balance_before: Optional[Decimal] = None,
         balance_after: Optional[Decimal] = None,
-        profit_target: Optional[Decimal] = None,
-        stop_loss: Optional[Decimal] = None,
         failure_reason: Optional[str] = None,
-        notes: Optional[str] = None
     ):
         """
         거래 실행 기록 저장 (내부 메서드)
         
         Args:
-            signal_id: 거래 신호 ID
+            prompt_id: 프롬프트 ID
             account_id: 계정 UUID
             coin: 코인 심볼
             signal_type: 신호 타입
@@ -759,7 +752,7 @@ class TradingSimulator:
                 time_delay = (now - signal_created_at).total_seconds()
             
             execution = LLMTradingExecution(
-                signal_id=signal_id,
+                prompt_id=prompt_id,
                 account_id=account_id,
                 coin=coin,
                 signal_type=signal_type,
@@ -767,16 +760,12 @@ class TradingSimulator:
                 failure_reason=failure_reason,
                 intended_price=intended_price,
                 executed_price=executed_price,
-                price_slippage=price_slippage,
                 intended_quantity=intended_quantity,
                 executed_quantity=executed_quantity,
                 balance_before=balance_before,
                 balance_after=balance_after,
                 signal_created_at=signal_created_at,
                 time_delay=Decimal(str(time_delay)) if time_delay else None,
-                profit_target=profit_target,
-                stop_loss=stop_loss,
-                notes=notes
             )
             
             self.db.add(execution)

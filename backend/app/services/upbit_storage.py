@@ -291,6 +291,7 @@ class UpbitDataStorage:
                 logger.warning(f"⚠️ [저장] {market} 3분봉: 저장 실패 (저장 0개, 오류 {error_count}개)")
             else:
                 logger.warning(f"⚠️ [저장] {market} 3분봉: 저장 결과 없음 (저장 0개, 중복 0개, 오류 0개)")
+                
         except Exception as e:
             self.db.rollback()
             logger.error(f"❌ [저장] {market} 3분봉 커밋 실패: {e}")

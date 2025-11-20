@@ -10,13 +10,14 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from app.core.config import settings, LLMAccountConfig
 from sqlalchemy import desc, cast, Text
+from datetime import datetime
 
-from app.db.database import LLMTradingSignal, SessionLocal, UpbitAccounts,UpbitTicker
+from app.db.database import LLMTradingSignal, SessionLocal, UpbitAccounts, UpbitTicker
 from app.schemas.llm import TradeDecision
 from app.services.llm_prompt_generator import LLMPromptGenerator
 from app.services.vllm_model_registry import get_preferred_model_name
 from app.services.trading_simulator import TradingSimulator
-from sqlalchemy import desc 
+from app.services.llm_response_validator import validate_trade_decision, build_retry_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -116,8 +117,13 @@ def _resolve_account_id(
         return None
 
 
-
-def _save_trading_signal(db: Session, prompt_id: int, decision: TradeDecision, account_id: Optional[UUID] = None) -> LLMTradingSignal:
+def _save_trading_signal(
+    db: Session, 
+    prompt_id: int, 
+    decision: TradeDecision, 
+    account_id: Optional[UUID] = None,
+    thinking: Optional[str] = None # thinking 파라미터 추가
+) -> LLMTradingSignal:    
     """
     LLM 응답을 llm_trading_signal 테이블에 저장
     
@@ -126,6 +132,7 @@ def _save_trading_signal(db: Session, prompt_id: int, decision: TradeDecision, a
         prompt_id: 프롬프트 ID
         decision: 트레이딩 결정 데이터
         account_id: 계정 ID (LLM 모델별 매핑)
+        thinking: LLM의 사고 과정 (CoT, <thinking>...</thinking>)
     
     Returns:
         LLMTradingSignal: 저장된 거래 신호 객체
@@ -153,7 +160,7 @@ def _save_trading_signal(db: Session, prompt_id: int, decision: TradeDecision, a
         account_id=account_id,
         coin=coin_upper,
         signal=decision.signal,
-        current_price=current_price,  # 🔍 추가
+        current_price=current_price,  # 추가
         stop_loss=_to_decimal(decision.stop_loss),
         profit_target=_to_decimal(decision.profit_target),
         quantity=_to_decimal(decision.quantity),
@@ -162,6 +169,7 @@ def _save_trading_signal(db: Session, prompt_id: int, decision: TradeDecision, a
         confidence=_to_decimal(decision.confidence),
         invalidation_condition=decision.invalidation_condition,
         justification=decision.justification,
+        thinking=thinking, # 추가
     )
 
     db.add(signal) # INSERT 예약
@@ -225,11 +233,18 @@ async def get_trade_decision(
         )
 
         raw_content = completion.choices[0].message.content or ""
+        thinking_part = None
         json_part = raw_content
         
-        # <thinking> 태그 제거
-        if "</thinking>" in raw_content:
-            json_part = raw_content.split("</thinking>")[-1].strip()
+        # <thinking>...</thinking> 부분 추출
+        if "<thinking>" in raw_content:
+            thinking_start = raw_content.find("<thinking>")
+            thinking_end = raw_content.find("</thinking>") + len("</thinking>")
+            thinking_part = raw_content[thinking_start:thinking_end]
+            logger.debug(f"📝 CoT 추출 완료 (길이: {len(thinking_part)}자)")
+        
+        # JSON 부분만 추출
+        json_part = raw_content.split("</thinking>")[-1].strip()
         
         # JSON 파싱
         try:
@@ -258,41 +273,154 @@ async def get_trade_decision(
 
         account_id = _resolve_account_id(db, model, validated_decision)
 
-        # DB에 저장 (account_id 포함)
-        saved_signal = _save_trading_signal(db, prompt_data.id, validated_decision, account_id)
-
-        logger.info(
-            "✅ LLM 거래 신호 저장 완료 (prompt_id=%s, coin=%s, model=%s, account_id=%s)",
-            prompt_data.id,
-            validated_decision.coin,
-            model,
+        # [검증 로직 추가] 저장 전에 먼저 검증
+        is_valid, validation_errors = validate_trade_decision(
+            validated_decision,
             account_id,
+            db,
+            prompt_id=prompt_data.id,
+            signal_created_at=datetime.utcnow()
         )
-
-       # 거래 시뮬레이션 실행
-        if account_id:
+        
+        saved_signal = None
+        final_decision = validated_decision
+        
+        # 검증 통과 시에만 llm_trading_signal에 저장
+        if is_valid:
+            logger.info("✅ 검증 통과! llm_trading_signal에 저장합니다.")
+            saved_signal = _save_trading_signal(
+                db=db,
+                prompt_id=prompt_data.id,
+                decision=validated_decision,
+                account_id=account_id,
+                thinking=thinking_part  # ⭐ thinking 전달
+            )
+            logger.info(
+                "✅ LLM 거래 신호 저장 완료 (prompt_id=%s, prompt_id=%s, coin=%s, model=%s, account_id=%s)",
+                prompt_data.id,
+                saved_signal.id,
+                validated_decision.coin,
+                model,
+                account_id,
+            )
+        else:
+            # 검증 실패 시 재요청
+            logger.warning(f"⚠️ 검증 실패! (오류: {len(validation_errors)}개)")
+            logger.info("📝 검증 실패 기록은 llm_trading_execution에만 저장됩니다.")
+            
+            # 재요청 프롬프트 생성
+            retry_prompt_text = build_retry_prompt(
+                original_prompt=user_content,
+                rejection_reasons=validation_errors,
+                original_decision=validated_decision
+            )
+            
+            # LLM에 재요청
             try:
+                logger.info("🔄 LLM 재요청 중...")
+                
+                retry_completion = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_content},
+                        {"role": "user", "content": retry_prompt_text},
+                    ],
+                    temperature=0.0,
+                    response_format={"type": "json_object"},
+                )
+                
+                # 재요청 응답 파싱
+                retry_raw_content = retry_completion.choices[0].message.content or ""
+                
+                # 재요청 thinking 부분 추출
+                retry_thinking_part = None
+                retry_json_part = retry_raw_content
+                
+                if "</thinking>" in retry_raw_content:
+                    # <thinking>...</thinking> 부분 추출
+                    if "<thinking>" in retry_raw_content:
+                        retry_thinking_start = retry_raw_content.find("<thinking>")
+                        retry_thinking_end = retry_raw_content.find("</thinking>") + len("</thinking>")
+                        retry_thinking_part = retry_raw_content[retry_thinking_start:retry_thinking_end]
+                        logger.debug(f"📝 재요청 CoT 추출 완료 (길이: {len(retry_thinking_part)}자)")
+                    
+                    # JSON 부분만 추출
+                    retry_json_part = retry_raw_content.split("</thinking>")[-1].strip()
+                
+                retry_decision_data = json.loads(retry_json_part)
+                
+                # expected_response_schema 제거
+                if "expected_response_schema" in retry_decision_data:
+                    retry_decision_data.pop("expected_response_schema")
+                
+                retry_decision = TradeDecision(**retry_decision_data)
+                
+                # 재요청 응답 검증
+                retry_is_valid, retry_errors = validate_trade_decision(
+                    retry_decision,
+                    account_id,
+                    db,
+                    prompt_id=prompt_data.id,
+                    signal_created_at=datetime.utcnow()
+                )
+                
+                # 재요청 응답 검증 통과 시에만 llm_trading_signal에 저장
+                if retry_is_valid:
+                    logger.info("✅ 재요청 성공! 검증 통과 → llm_trading_signal에 저장")
+                    saved_signal = _save_trading_signal(
+                        db=db,
+                        prompt_id=prompt_data.id,  # ⭐ 같은 prompt_id 사용
+                        decision=retry_decision,
+                        account_id=account_id,
+                        thinking=retry_thinking_part  # ⭐ 재요청 thinking 전달
+                    )
+                    
+                    logger.info(
+                        "✅ 재요청 응답 저장 완료 (prompt_id=%s, prompt_id=%s)",
+                        prompt_data.id,
+                        saved_signal.id
+                    )
+                    
+                    # 재요청 응답을 최종으로 사용
+                    final_decision = retry_decision
+                else:
+                    logger.error(f"❌ 재요청도 검증 실패! 오류: {retry_errors}")
+                    logger.info("📝 재요청 실패 기록도 llm_trading_execution에만 저장됩니다.")
+            
+            except Exception as retry_error:
+                logger.error(f"❌ 재요청 중 예외 발생: {retry_error}", exc_info=True)
+
+        # 거래 시뮬레이션 실행 (검증 통과 & signal 저장된 경우에만)
+        if account_id and saved_signal:
+            try:
+                logger.info(f"🎯 거래 시뮬레이션 시작 (prompt_id={saved_signal.id})")
                 simulator = TradingSimulator(db)
                 
                 # 계좌가 초기화되어 있는지 확인 (없으면 초기화)
                 simulator.initialize_account(account_id)
                 
                 # LLM이 판단한 시점의 가격 조회 (intended_price)
-                intended_price = simulator.get_current_price(validated_decision.coin)
+                intended_price = simulator.get_current_price(final_decision.coin)
                 
                 # 거래 실행 (슬리피지 체크 포함)
                 trade_success = simulator.execute_trade_signal(saved_signal, intended_price)
                 
                 if trade_success:
-                    logger.info(f"✅ 거래 실행 완료 (signal_id={saved_signal.id}, coin={validated_decision.coin})")
+                    logger.info(f"✅ 거래 실행 완료 (prompt_id={saved_signal.id}, coin={final_decision.coin})")
                 else:
-                    logger.warning(f"⚠️ 거래 실행 실패 (signal_id={saved_signal.id})")
+                    logger.warning(f"⚠️ 거래 실행 실패 (prompt_id={saved_signal.id})")
                     
             except Exception as e:
                 logger.error(f"❌ 거래 실행 중 오류: {e}")
                 # 거래 실행 실패해도 신호는 저장되었으므로 계속 진행
+        else:
+            if not saved_signal:
+                logger.warning(
+                    f"⚠️ 검증 실패로 거래 시뮬레이션을 실행하지 않습니다. "
+                    f"(prompt_id={prompt_data.id})"
+                )
                 
-        return validated_decision
+        return final_decision
     
     
     except json.JSONDecodeError as exc:

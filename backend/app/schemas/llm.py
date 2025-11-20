@@ -14,6 +14,7 @@ class TradeDecision(BaseModel):
     risk_usd: Optional[float] = None
     invalidation_condition: Optional[str] = None
     justification: Optional[str] = None
+    thinking: Optional[str] = None # thinking 추가
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
     account_id: Optional[str] = None
 

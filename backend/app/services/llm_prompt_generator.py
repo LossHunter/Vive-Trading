@@ -48,6 +48,32 @@ def get_server_start_time() -> Optional[datetime]:
     return _server_start_time
 
 
+# 전역 서버 시작 시간 (서버 시작 시 설정됨)
+_server_start_time: Optional[datetime] = None
+
+
+def set_server_start_time(start_time: datetime) -> None:
+    """
+    서버 시작 시간 설정 (전역 변수)
+    
+    Args:
+        start_time: 서버 시작 시각 (UTC)
+    """
+    global _server_start_time
+    _server_start_time = start_time
+    logger.info(f"서버 시작 시간 설정: {start_time}")
+
+
+def get_server_start_time() -> Optional[datetime]:
+    """
+    서버 시작 시간 조회
+    
+    Returns:
+        datetime | None: 서버 시작 시각 (UTC), 설정되지 않았으면 None
+    """
+    return _server_start_time
+
+
 class LLMPromptGenerator:
     """LLM 프롬프트 생성 클래스"""
     
@@ -70,7 +96,7 @@ class LLMPromptGenerator:
                 self.trading_start_time = datetime.now(timezone.utc) - timedelta(minutes=2399)
         else:
             self.trading_start_time = trading_start_time
-    
+
     def calculate_trading_minutes(self) -> int:
         """거래 시작 후 경과 시간(분) 계산"""
         elapsed = datetime.now(timezone.utc) - self.trading_start_time

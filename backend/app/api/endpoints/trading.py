@@ -237,7 +237,7 @@ async def get_trading_executions(
         for execution in executions:
             results.append({
                 "id": execution.id,
-                "signal_id": execution.signal_id,
+                "prompt_id": execution.prompt_id,
                 "account_id": str(execution.account_id) if execution.account_id else None,
                 "coin": execution.coin,
                 "signal_type": execution.signal_type,
@@ -245,14 +245,11 @@ async def get_trading_executions(
                 "failure_reason": execution.failure_reason,
                 "intended_price": float(execution.intended_price) if execution.intended_price else None,
                 "executed_price": float(execution.executed_price) if execution.executed_price else None,
-                "price_slippage": float(execution.price_slippage) if execution.price_slippage else None,
                 "intended_quantity": float(execution.intended_quantity) if execution.intended_quantity else None,
                 "executed_quantity": float(execution.executed_quantity) if execution.executed_quantity else None,
                 "balance_before": float(execution.balance_before) if execution.balance_before else None,
                 "balance_after": float(execution.balance_after) if execution.balance_after else None,
                 "executed_at": execution.executed_at.isoformat() if execution.executed_at else None,
-                "time_delay": float(execution.time_delay) if execution.time_delay else None,
-                "notes": execution.notes
             })
         
         return {
@@ -281,7 +278,6 @@ async def get_trading_stats(db: Session = Depends(get_db)):
             - failed_count: 실패 횟수
             - skipped_count: 건너뜀 횟수
             - success_rate: 성공률 (%)
-            - avg_slippage: 평균 슬리피지 (%)
             - avg_delay: 평균 지연 시간 (초)
     
     Example:
@@ -309,12 +305,6 @@ async def get_trading_stats(db: Session = Depends(get_db)):
         # 성공률
         success_rate = (success_count / total * 100) if total > 0 else 0
         
-        # 평균 슬리피지 (성공한 거래만)
-        avg_slippage = db.query(func.avg(LLMTradingExecution.price_slippage)).filter(
-            LLMTradingExecution.execution_status == "success",
-            LLMTradingExecution.price_slippage != None
-        ).scalar()
-        
         # 평균 지연 시간
         avg_delay = db.query(func.avg(LLMTradingExecution.time_delay)).filter(
             LLMTradingExecution.time_delay != None
@@ -327,7 +317,6 @@ async def get_trading_stats(db: Session = Depends(get_db)):
             "failed_count": failed_count,
             "skipped_count": skipped_count,
             "success_rate": round(float(success_rate), 2),
-            "avg_slippage": round(float(avg_slippage), 4) if avg_slippage else 0,
             "avg_delay": round(float(avg_delay), 3) if avg_delay else 0
         }
         

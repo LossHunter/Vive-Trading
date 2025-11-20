@@ -238,7 +238,7 @@ class LLMTradingSignal(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
     prompt_id = Column(BigInteger, nullable=False, comment="프롬프트 ID (llm_prompt_data FK)")
-    account_id = Column(UUID(as_uuid=False), comment="계정 식별자")
+    account_id = Column(UUID(as_uuid=True), nullable=True, comment="계정 ID (LLM 모델별 매핑)")
     coin = Column(Text, nullable=False, comment="코인 심볼 (예: BTC, ETH)")
     signal = Column(Text, nullable=False, comment="거래 신호 (예: buy_to_enter, sell_to_exit, hold)")
     current_price = Column(Numeric(20, 8), comment="신호 생성 시점의 현재가")
@@ -250,6 +250,7 @@ class LLMTradingSignal(Base):
     confidence = Column(Numeric(5, 4), comment="신뢰도 (0.0 ~ 1.0)")
     invalidation_condition = Column(Text, comment="무효화 조건 설명")
     justification = Column(Text, comment="거래 근거 설명")
+    thinking = Column(Text, comment="LLM의 사고 과정 (Chain of Thought, CoT)")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="신호 생성 시각 (UTC)")
 
 class LLMTradingExecution(Base):
@@ -257,8 +258,8 @@ class LLMTradingExecution(Base):
     __tablename__ = "llm_trading_execution"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
-    signal_id = Column(BigInteger, nullable=False, comment="거래 신호 ID (llm_trading_signal FK)")
-    account_id = Column(UUID(as_uuid=True), nullable=True, comment="계정 ID")
+    prompt_id = Column(BigInteger, nullable=False, comment="프롬프트 ID")
+    account_id = Column(UUID(as_uuid=True), nullable=True, comment="계정 ID (LLM 모델별 매핑)")
     coin = Column(Text, nullable=False, comment="코인 심볼")
     signal_type = Column(Text, nullable=False, comment="신호 타입 (buy_to_enter, sell_to_exit, hold)")
     
@@ -269,7 +270,6 @@ class LLMTradingExecution(Base):
     # 가격 정보
     intended_price = Column(Numeric(20, 8), comment="LLM이 판단한 가격 (신호 생성 시각)")
     executed_price = Column(Numeric(20, 8), comment="실제 체결 가격 (실행 시각)")
-    price_slippage = Column(Numeric(10, 4), comment="슬리피지 (%) = (executed - intended) / intended * 100")
     
     # 수량 정보
     intended_quantity = Column(Numeric(30, 10), comment="의도한 수량")
@@ -282,12 +282,6 @@ class LLMTradingExecution(Base):
     # 시각 정보
     signal_created_at = Column(DateTime(timezone=True), comment="신호 생성 시각")
     executed_at = Column(DateTime(timezone=True), server_default=func.now(), comment="실행 시각")
-    time_delay = Column(Numeric(10, 3), comment="실행 지연 시간 (초)")
-    
-    # 추가 정보
-    profit_target = Column(Numeric(20, 8), comment="목표가")
-    stop_loss = Column(Numeric(20, 8), comment="손절가")
-    notes = Column(Text, comment="비고")
 
 
 

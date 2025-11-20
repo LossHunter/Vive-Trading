@@ -328,9 +328,9 @@ async def get_wallet_data_list_other(db: Session) -> List[Dict]:
             "colors": wallet_item["colors"],
             "logo": wallet_item["logo"],
             "time": time_int,
-            "why": "",  # 빈 문자열
-            "position": "",  # 빈 문자열
-            "bit": wallet_item["btc"],  # btc를 bit로 변환
+            "why": "", # 빈 문자열
+            "position": "", # 빈 문자열
+            "bit": wallet_item["btc"], # btc를 bit로 변환
             "eth": wallet_item["eth"],
             "doge": wallet_item["doge"],
             "sol": wallet_item["sol"],
@@ -371,6 +371,7 @@ async def broadcast_wallet_data_periodically(manager: "ConnectionManager"):
     Args:
         manager: WebSocket ConnectionManager 인스턴스
     """
+    
     while True:
         try:
             # 다음 정분까지 대기
@@ -387,7 +388,7 @@ async def broadcast_wallet_data_periodically(manager: "ConnectionManager"):
                     "data": wallet_data,
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 }))
-                
+
                 logger.debug(f"✅ 지갑 데이터 전송 완료 ({len(wallet_data)}명, 정분 기준)")
             finally:
                 db.close()

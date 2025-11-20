@@ -485,4 +485,3 @@ async def collect_historical_data_internal(market: str, count: int, interval: st
     except Exception as e:
         logger.error(f"❌ 과거 데이터 수집 오류: {e}")
         return {"success": False, "error": str(e)}
-
