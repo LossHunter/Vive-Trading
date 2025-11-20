@@ -26,3 +26,10 @@ wandb
 sqlalchemy
 psycopg2-binary
 aiohttp
+
+# front
+PyJwt
+httpx
+google-auth
+dotenv
+wandb

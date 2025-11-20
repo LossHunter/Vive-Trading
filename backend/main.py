@@ -111,16 +111,6 @@ async def lifespan(app: FastAPI):
                 deleted_accounts = db.query(UpbitAccounts).delete()
                 logger.info(f"✅ UpbitAccounts 테이블 초기화 완료 ({deleted_accounts}개 삭제)")
 
-                # # KRW 잔액 10000000 데이터 추가
-                # initial_account = UpbitAccounts(
-                #     currency="KRW",
-                #     balance=Decimal("10000000"),
-                #     locked=Decimal("0"),
-                #     avg_buy_price=Decimal("0"),
-                #     avg_buy_price_modified=False,
-                #     unit_currency="KRW"
-                # )
-                # db.add(initial_account)
                 db.commit()
                 # logger.info("✅ UpbitAccounts 초기 데이터 추가 완료 (KRW: 10,000,000)")
 

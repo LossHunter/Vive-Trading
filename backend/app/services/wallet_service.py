@@ -69,7 +69,7 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
     
     # 조회할 날짜 설정
     if target_date is None:
-        target_date = datetime.utcnow()
+        target_date = datetime.now(timezone.utc)
     
     date_str = target_date.strftime("%Y/%m/%d")
     start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -248,7 +248,6 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
     
     return wallet_data
 
-
 async def get_wallet_data_list_other(db: Session) -> List[Dict]:
     """
     각 유저별 30일치 지갑 데이터를 평탄화된 형태로 생성
@@ -377,14 +376,13 @@ async def broadcast_wallet_data_periodically(manager: "ConnectionManager"):
         try:
             # 다음 정분까지 대기
             wait_seconds = calculate_wait_seconds_until_next_scheduled_time('minute', 1)
-            
             if wait_seconds > 0:
                 await asyncio.sleep(wait_seconds)
             
             db = SessionLocal()
             try:
                 wallet_data = await get_wallet_data_list_other(db)
-
+                
                 await manager.broadcast(json.dumps({
                     "type": "wallet",
                     "data": wallet_data,

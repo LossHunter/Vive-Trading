@@ -92,8 +92,7 @@ def calculate_next_candle_completion_time(interval_minutes: int = 3, buffer_seco
     now = datetime.now(timezone.utc)
     current_minute = now.minute
     remainder = current_minute % interval_minutes
-
-
+    
     if remainder == 0:
         # 이미 정3분이면 다음 정3분
         next_completion = now + timedelta(minutes=interval_minutes)
@@ -101,18 +100,14 @@ def calculate_next_candle_completion_time(interval_minutes: int = 3, buffer_seco
         # 다음 정3분까지
         minutes_to_add = interval_minutes - remainder
         next_completion = now + timedelta(minutes=minutes_to_add)
-
-
+    
     # 정3분 시각으로 정규화
     next_completion = next_completion.replace(second=0, microsecond=0)
-
-
+    
     # 버퍼 시간 추가 (캔들 완료 후 API가 데이터를 확정하는 시간)
     collection_time = next_completion + timedelta(seconds=buffer_seconds)
-
-
+    
     return collection_time
-
 
 def calculate_wait_seconds_until_candle_completion(interval_minutes: int = 3, buffer_seconds: int = 5) -> float:
     """
@@ -128,5 +123,4 @@ def calculate_wait_seconds_until_candle_completion(interval_minutes: int = 3, bu
     now = datetime.now(timezone.utc)
     next_collection = calculate_next_candle_completion_time(interval_minutes, buffer_seconds)
     wait_seconds = (next_collection - now).total_seconds()
-
     return max(0.0, wait_seconds)

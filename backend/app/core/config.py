@@ -130,7 +130,7 @@ class ServerConfig:
     # CORS 설정 (프론트엔드 연결 허용)
     CORS_ORIGINS: list = [
         "http://localhost:5173",  # Vite 기본 포트
-        "http://localhost:5432",
+        "http://localhost:5432",  # DB 기본 포트
         "http://localhost:3000",  # React 기본 포트
         "http://localhost:8000", # 현재 FE에서 사용 중인 포트 --> 53756에서 8000으로 변경
     ]

@@ -22,6 +22,31 @@ from app.core.schedule_utils import calculate_wait_seconds_until_next_scheduled_
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# 전역 서버 시작 시간 (서버 시작 시 설정됨)
+_server_start_time: Optional[datetime] = None
+
+
+def set_server_start_time(start_time: datetime) -> None:
+    """
+    서버 시작 시간 설정 (전역 변수)
+    
+    Args:
+        start_time: 서버 시작 시각 (UTC)
+    """
+    global _server_start_time
+    _server_start_time = start_time
+    logger.info(f"서버 시작 시간 설정: {start_time}")
+
+
+def get_server_start_time() -> Optional[datetime]:
+    """
+    서버 시작 시간 조회
+    
+    Returns:
+        datetime | None: 서버 시작 시각 (UTC), 설정되지 않았으면 None
+    """
+    return _server_start_time
+
 
 # 전역 서버 시작 시간 (서버 시작 시 설정됨)
 _server_start_time: Optional[datetime] = None

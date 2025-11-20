@@ -840,18 +840,18 @@ class IndicatorsCalculator:
                 UpbitIndicators.interval == interval
             ).first()
             
-            if not existing_indicator:
-                indicator_obj = UpbitIndicators(
-                    market=market,
-                    candle_date_time_utc=candle_date_time_utc,
-                    interval=interval,
-                    rsi14=Decimal(rsi_data["RSI"])
-                )
-                db.add(indicator_obj)
-                db.commit()
-                logger.debug(f"✅ {market} indicators 테이블에 RSI(14) 저장 완료")
-            else:
-                logger.debug(f"⏭️ {market} indicators 이미 존재 (건너뜀, interval={interval})")
+            # if not existing_indicator:
+            #     indicator_obj = UpbitIndicators(
+            #         market=market,
+            #         candle_date_time_utc=candle_date_time_utc,
+            #         interval=interval,
+            #         rsi14=Decimal(rsi_data["RSI"])
+            #     )
+            #     db.add(indicator_obj)
+            #     db.commit()
+            #     logger.debug(f"✅ {market} indicators 테이블에 RSI(14) 저장 완료")
+            # else:
+            #     logger.debug(f"⏭️ {market} indicators 이미 존재 (건너뜀, interval={interval})")
             
             return {
                 "market": market,

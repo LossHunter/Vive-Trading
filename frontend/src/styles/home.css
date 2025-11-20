@@ -3,7 +3,22 @@
     display: grid;
     grid-template-rows: auto 1fr auto;
     gap: 10px;
-    max-height: 100vh;
+    height: 100vh;
+    width: 100vw;
+    min-width: 1300px;
+}
+
+
+.frame::-webkit-scrollbar {
+    display: none;
+}
+
+.frame *::-webkit-scrollbar {
+    display: none;
+}
+
+.frame * {
+    box-sizing: border-box; /* 모든 자식 요소 포함 */
 }
 
 /* main */
@@ -26,7 +41,7 @@ main {
     align-items: center;
     border-radius: 10px;
     background: rgba(237, 245, 250, 0.3);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0.2, 0, 0, 0.2);
     backdrop-filter: blur(4px);
     border: 1px solid rgba(0, 0, 0, 0.05);
     padding: 15px;
@@ -81,7 +96,7 @@ main {
     align-items: center;
     border-radius: 10px;
     background: rgba(237, 245, 250, 0.3);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0.2, 0, 0, 0.2);
     backdrop-filter: blur(4px);
     border: 1px solid rgba(0, 0, 0, 0.05);
     box-sizing: border-box;
@@ -96,7 +111,7 @@ main {
     justify-content: center;
     border-radius: 10px;
     background: rgba(237, 245, 250, 0.3);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0.2, 0, 0, 0.2);
     backdrop-filter: blur(4px);
     border: 1px solid rgba(0, 0, 0, 0.05);
     padding: 15px;

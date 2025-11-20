@@ -16,6 +16,8 @@ env/
 backend/.env
 venv/
 .venv/
+.env
+.env *
 
 # IDEs
 .idea/
@@ -30,3 +32,6 @@ Thumbs.db
 # Docker
 *.swp
 *.swo
+
+# Debug scripts
+backend/debug_candle_monitor.py
