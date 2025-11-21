@@ -52,14 +52,37 @@ def _build_system_message(strategy_prompt: str = "") -> str:
 
 {schema_str}
 
-IMPORTANT:
-- You MUST include "coin" (string) and "signal" (one of: buy_to_enter, sell_to_exit, hold, close_position, buy, sell, exit) fields
-- You SHOULD include "justification" (string) that explains the trade rationale based on market conditions
-- You SHOULD include "thinking" (string) that describes your step-by-step reasoning process for the decision
-- Both "justification" and "thinking" are highly recommended for better decision tracking
-- All other fields are optional but encouraged (stop_loss, profit_target, quantity, confidence, etc.)
+IMPORTANT RULES:
+
+**Required Fields:**
+- "coin" (string): The cryptocurrency symbol (e.g., "BTC", "ETH")
+- "signal" (string): One of: buy_to_enter, sell_to_exit, hold, close_position, buy, sell, exit
+
+**Recommended Fields:**
+- "justification" (string): Trade rationale based on market conditions
+- "thinking" (string): Step-by-step reasoning process
+- "confidence" (float 0.0-1.0): Confidence level in this decision
+
+**Trading Parameters (REQUIRED for buy/sell signals ONLY):**
+- "quantity" (float): Amount to trade (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
+- "stop_loss" (float): Stop loss price (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
+- "profit_target" (float): Target profit price (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
+- "leverage" (int): MUST ALWAYS BE 1 (Upbit does not support leverage trading)
+- "risk_usd" (float): Risk amount in USD (optional but recommended)
+
+**CRITICAL: HOLD Signal Behavior:**
+- When signal is "hold", you MUST set the following fields to null:
+  - quantity: null
+  - stop_loss: null
+  - profit_target: null
+  - risk_usd: null
+  - invalidation_condition: null
+- HOLD means "do nothing", so trading parameters are not needed
+- Only provide justification, thinking, and confidence for HOLD signals
+
+**Response Format:**
 - Return ONLY the JSON object, nothing else
-- Do not include the schema itself in your response
+- Do not include the schema or any explanatory text
 
 {strategy_prompt}"""
 
