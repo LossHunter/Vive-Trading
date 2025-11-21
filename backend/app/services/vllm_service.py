@@ -47,16 +47,54 @@ def _build_system_message() -> str:
     schema = TradeDecision.model_json_schema()
     schema_str = json.dumps(schema, ensure_ascii=False, indent=2)
     
-    return f"""You are a trading decision assistant. You must respond with a valid JSON object that matches the following schema:
+    return f"""
+You are an expert AI trading analyst. Your goal is to analyze the market data provided and decide on a single, actionable trade.
 
-{schema_str}
+You MUST follow this exact process:
 
-IMPORTANT:
-- You must include "coin" (string) and "signal" (one of: buy_to_enter, sell_to_exit, hold, close_position, buy, sell, exit) fields
-- You SHOULD also include a "thinking" field (string) that describes your reasoning for the decision
-- All other fields are optional
-- Return ONLY the JSON object, nothing else
-- Do not include the schema itself in your response"""
+1.  **Think (Chain-of-Thought):**
+    First, think step-by-step about the provided data.
+    Your thought process must be private and MUST NOT appear outside the JSON response.
+    Instead, convert your internal reasoning into:
+    - "thinking": a detailed, long, analytical explanation of your reasoning
+    - "justification": a brief, user-facing summary of the rationale
+
+    Your analysis MUST cover:
+    - Current Position Analysis: Review any existing positions, PnL, and invalidation conditions.
+    - Market Analysis: Analyze the provided data for BTC and other major coins (ETH, SOL, etc.).
+    - Strategic Assessment: Synthesize all data to find the best trading opportunity.
+    - Actionable Decision: Formulate a specific, justified trade with risk parameters.
+
+2.  **Act (JSON Output):**
+    You MUST output ONLY a single JSON object with the trade decision.
+    Do NOT output any text outside the JSON.
+    
+    The JSON structure MUST look like this:
+
+    {{
+        "stop_loss": <float>,
+        "signal": "<buy_to_enter | sell_to_enter | hold | close_position | buy | sell | exit>",
+        "leverage": <int>,
+        "risk_usd": <float>,
+        "profit_target": <float>,
+        "quantity": <float>,
+        "invalidation_condition": "<string>",
+        "justification": "<string - a brief summary of your reasoning>",
+        "thinking": "<string - a long, detailed explanation of your internal reasoning>",
+        "confidence": <float between 0.0 and 1.0>,
+        "coin": "<string, e.g., BTC, ETH>"
+    }}
+
+The JSON object MUST follow these rules:
+- It MUST include:
+    - "coin": string (e.g. "BTC")
+    - "signal": string (buy_to_enter, sell_to_enter, hold, close_position, buy, sell, exit)
+- It SHOULD also include:
+    - "thinking": string
+    - "justification": string
+- The output MUST be valid JSON.
+- No text, markdown, or commentary is allowed outside the JSON object.
+"""
 
 
 def _build_user_payload(prompt_data, extra_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -207,15 +245,16 @@ async def get_trade_decision(
         user_payload = _build_user_payload(prompt_data, extra_context)
         
         # 사용자 메시지를 텍스트 형식으로 변환 (JSON이 아닌 읽기 쉬운 형식)
-        user_content = f"""다음은 현재 시장 상황과 계정 정보입니다:
+        user_content = f"""Here is the current market and account information:
+        
+        ## prompt_text
+        {prompt_data.prompt_text}
 
-## 프롬프트 텍스트
-{prompt_data.prompt_text}
+        ## additional_context
+        {json.dumps(extra_context, ensure_ascii=False, indent=2) if extra_context else "None"}
 
-## 추가 컨텍스트
-{json.dumps(extra_context, ensure_ascii=False, indent=2) if extra_context else "없음"}
-
-위 정보를 바탕으로 거래 결정을 내려주세요. 반드시 JSON 형식으로 응답해야 하며, "coin"과 "signal" 필드는 필수입니다."""
+        Based on the above information, please output a trading decision in JSON format.
+        The "coin" and "signal" fields are required."""
 
         completion = client.chat.completions.create(
             model=model, # 전달받은 모델 이름 사용
