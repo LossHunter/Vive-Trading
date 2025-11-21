@@ -53,9 +53,11 @@ def _build_system_message(strategy_prompt: str = "") -> str:
 {schema_str}
 
 IMPORTANT:
-- You must include "coin" (string) and "signal" (one of: buy_to_enter, sell_to_exit, hold, close_position, buy, sell, exit) fields
-- You SHOULD also include a "thinking" field (string) that describes your reasoning for the decision
-- All other fields are optional
+- You MUST include "coin" (string) and "signal" (one of: buy_to_enter, sell_to_exit, hold, close_position, buy, sell, exit) fields
+- You SHOULD include "justification" (string) that explains the trade rationale based on market conditions
+- You SHOULD include "thinking" (string) that describes your step-by-step reasoning process for the decision
+- Both "justification" and "thinking" are highly recommended for better decision tracking
+- All other fields are optional but encouraged (stop_loss, profit_target, quantity, confidence, etc.)
 - Return ONLY the JSON object, nothing else
 - Do not include the schema itself in your response
 
