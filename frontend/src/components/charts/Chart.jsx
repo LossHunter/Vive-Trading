@@ -1,57 +1,11 @@
 ﻿import React, { useState, useEffect } from "react";
 import Chart from "react-apexcharts";
 import "../../styles/Chart.css";
+import Loading from "../../components/common/Loading";
 
 export default function RealTimeCandleChart({ bot, data }) {
     const [isPercent, setIsPercent] = useState(false);
-
-    const [days, setDays] = useState(() => {
-        const arr = [];
-        const start = new Date(2025, 10, 1, 0, 0).getTime(); // 2025-11-01 00:00
-        const end = new Date(2025, 10, 1, 1, 60).getTime();   // 2025-11-02 00:00
-        const INTERVAL = 1000 * 60 * 15; // 15분
-
-        let prevDay = null;
-
-        for (let t = start; t <= end; t += INTERVAL) {
-            const d = new Date(t);
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            const hour = String(d.getHours()).padStart(2, '0');
-            const minute = String(d.getMinutes()).padStart(2, '0');
-
-            let formatted;
-            if (prevDay === d.getDate()) {
-                // 같은 날이면 시간만
-                formatted = `${hour}:${minute}`;
-            } else {
-                // 새로운 날이면 날짜 포함
-                formatted = `${month}/${day} ${hour}:${minute}`;
-            }
-
-            prevDay = d.getDate();
-            arr.push(formatted);
-        }
-
-        return arr;
-    });
-   
-
-    useEffect(() => {
-        if (!data.length) return;
-
-        const allTimes = data.flatMap(item => item.time.map(t => new Date(t).getTime()));
-        const maxTime = Math.max(...allTimes);
-        const lastDay = days[days.length - 1];
-        const DAY = 1000 * 60 * 60 * 24;
-
-        if (maxTime > lastDay) {
-            const newDays = [...days];
-            for (let t = lastDay + DAY; t <= maxTime + DAY; t += DAY) newDays.push(t);
-            setDays(newDays);
-        }
-    }, [data, days]);
-
+    const [loading, setLoading] = useState(true);
 
     const getPercentChanges = (arr) => {
         const validArr = arr.filter(v => v != null);
@@ -69,50 +23,97 @@ export default function RealTimeCandleChart({ bot, data }) {
         time: item.time.map(t => new Date(t).getTime())
     }));
 
-    // ⑤ 필터링된 시리즈 데이터
-    const filteredSeries = datamapping
+    // 필터링된 시리즈 데이터
+    // const filteredSeries = datamapping
+    //     .filter(user => bot === "all" || user.userId === bot)
+    //     .map(user => {
+    //         const yValues = isPercent
+    //         ? getPercentChanges(user.total_asset)
+    //         : user.total_asset;
+
+    //         const dataPoints = user.time.map((t, idx) => ({
+    //         x: t,           // 밀리초 값 그대로
+    //         y: yValues[idx] ?? 0  // 값 없으면 0
+    //         }));
+
+    //         return {
+    //         name: user.username,
+    //         color: user.colors,
+    //         logo: user.logo,
+    //         data: dataPoints
+    //         };
+    //     });
+
+    // y값이 전부 0이면 차트에서제외
+    let filteredSeries = datamapping
         .filter(user => bot === "all" || user.userId === bot)
+        .filter(user => {
+            // total_asset이 모두 0이면 제외
+            const yValuesRaw = isPercent
+                ? getPercentChanges(user.total_asset)
+                : user.total_asset;
+            // 하나라도 0이 아닌 값이 있으면 true, 모두 0이면 false
+            return yValuesRaw.some(v => v !== 0 && v != null);
+        })
         .map(user => {
-            const yValues = isPercent
-            ? getPercentChanges(user.total_asset)
-            : user.total_asset;
+            const yValuesRaw = isPercent
+                ? getPercentChanges(user.total_asset)
+                : user.total_asset;
 
             const dataPoints = user.time.map((t, idx) => ({
-            x: t,           // 밀리초 값 그대로
-            y: yValues[idx] ?? 0  // 값 없으면 0
+                x: t,
+                y: yValuesRaw[idx] ?? 0
             }));
 
             return {
-            name: user.username,
-            color: user.colors,
-            logo: user.logo,
-            data: dataPoints
+                name: user.username,
+                color: user.colors,
+                logo: user.logo,
+                data: dataPoints
             };
         });
 
-    console.log(filteredSeries)
-    // ⑥ Y축 계산
-    const y_unit = 2_000_000;
-    const initialMoneyMin = 8_000_000;
-    const initialMoneyMax = 12_000_000;
-    const initialPercentMin = -50;
-    const initialPercentMax = 50;
+            
+    const allTimes = filteredSeries.flatMap(s => s.data.map(d => d.x));
+    const minTime = Math.min(...allTimes);
+    const maxTime = Math.max(...allTimes);
+
+    // 짧은 시리즈 마지막에 null 추가
+    // X축 배열 수정
+    filteredSeries = filteredSeries.map(s => {
+        const lastX = s.data[s.data.length - 1]?.x ?? minTime;
+        if (lastX < maxTime) {
+            return {
+                ...s,
+                data: [
+                    ...s.data,
+                    { x: maxTime, y: null }
+                ]
+            };
+        }
+        return s;
+    });
+
+    // Y축 계산 (+30%/-30% 여유)
+    const initialMoney = 100_000_000;
+    const initialPercent = 0;
 
     const yValuesAll = filteredSeries.flatMap(s =>
         s.data.map(d => d.y).filter(v => v != null)
     );
 
     const rawYMin = isPercent
-        ? Math.min(...yValuesAll, initialPercentMin)
-        : Math.min(...yValuesAll, initialMoneyMin);
+        ? Math.min(...yValuesAll, initialPercent)
+        : Math.min(...yValuesAll, initialMoney);
 
     const rawYMax = isPercent
-        ? Math.max(...yValuesAll, initialPercentMax)
-        : Math.max(...yValuesAll, initialMoneyMax);
+        ? Math.max(...yValuesAll, initialPercent)
+        : Math.max(...yValuesAll, initialMoney);
 
-    const yMin = rawYMin * 0.9;
-    const yMax = rawYMax * 1.1;
+    const yMin = rawYMin * 0.96; 
+    const yMax = rawYMax * 1.04;  
 
+    const y_unit = 10_000_000;
     const yMinTick = isPercent
         ? Math.floor(yMin / 10) * 10
         : Math.floor(yMin / y_unit) * y_unit;
@@ -125,22 +126,33 @@ export default function RealTimeCandleChart({ bot, data }) {
         ? Math.ceil((yMaxTick - yMinTick) / 10)
         : Math.ceil((yMaxTick - yMinTick) / y_unit);
 
-    // 1일 밀리초
-    const DAY = 1000 * 60 * 60 * 24;
-    const FIFTEEN_MINUTES = 1000 * 60 * 15;
-    
-    // ⑦ 차트 옵션
+    useEffect(() => {
+        const hasPoints = filteredSeries.some(s => s.data && s.data.length > 0);
+        if (hasPoints) setLoading(false);
+    }, [filteredSeries]);
+
+    const timePadding = (maxTime - minTime) * 0.05; 
+
+    // 마커 추가
+    // X축 여유값 추가
+    // Y축 맞추도록 추가
     const options = {
         chart: {
             type: "line",
             height: 350,
-            animations: { enabled: true, easing: "linear", speed: 800 }
+            animations: { enabled: true, easing: "linear", speed: 800 },
         },
         xaxis: {
             type: "datetime",
+            max: maxTime + timePadding,
             labels: {
                 rotate: -45,
-                style: { fontSize: "10px" }
+                style: { fontSize: "10px" },
+                formatter: function(value) {
+                const date = new Date(value);
+                date.setHours(date.getHours() + 9); // UTC -> KST
+                return `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2,'0')}-${date.getDate().toString().padStart(2,'0')} ${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}`;
+                }
             }
         },
         yaxis: {
@@ -157,6 +169,10 @@ export default function RealTimeCandleChart({ bot, data }) {
                 }
             }
         },
+        markers: {
+            size: 0,       // 포인트 크기
+            hover: { size: 5 } // hover 시 확대
+        },
         grid: {
             show: true,
             borderColor: "#90A4AE",
@@ -169,15 +185,21 @@ export default function RealTimeCandleChart({ bot, data }) {
     };
 
     return (
-        <div className="chart-container">
-            <div className="chart-title">
-                <button onClick={() => setIsPercent(prev => !prev)}>
-                    {isPercent ? "₩ View" : "% View"}
-                </button>
-                <p>Real-Time Bot Account Asset</p>
-            </div>
+        <>
+        {(loading || filteredSeries.length === 0) ? (
+            <Loading />
+        ) : (
+            <div className="chart-container">
+                <div className="chart-title">
+                    <button onClick={() => setIsPercent(prev => !prev)}>
+                        {isPercent ? "₩ View" : "% View"}
+                    </button>
+                    <p>Real-Time Bot Account Asset</p>
+                </div>
 
-            <Chart options={options} series={filteredSeries} type="line" height="90%" />
-        </div>
+                <Chart options={options} series={filteredSeries} type="line" height="90%" />
+            </div>
+        )}
+        </>
     );
 }

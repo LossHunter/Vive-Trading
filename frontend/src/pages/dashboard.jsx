@@ -1,8 +1,8 @@
 ﻿import { useState, useEffect } from "react";
-import Header from "../components/Header"
+import Header from "../components/common/Header"
 import "../styles/dashboard.css"
 
-import Footer from "../components/Footer"
+import Footer from "../components/common/Footer"
 
 import { useNavigate } from "react-router-dom";
 

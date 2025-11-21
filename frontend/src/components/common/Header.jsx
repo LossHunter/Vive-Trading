@@ -1,18 +1,18 @@
-﻿import "../styles/Header.css"
+﻿import "../../styles/Header.css"
 
-import { useUpbitTicker } from '../services/UpbitSocket.jsx';
+import { useUpbitTicker } from '../../services/UpbitSocket.jsx';
 import { useNavigate, useLocation  } from "react-router-dom";
 
-import BitcoinLogo from '../assets/Bitcoin_logo.png';
-import EthuLogo from '../assets/Ethereum_logo.png';
-import DogeLogo from '../assets/Doge_log.png';
-import SolanaLogo from '../assets/Solana_logo.png';
-import XRPLogo from '../assets/XRP_logo.png';
+import BitcoinLogo from '../../assets/Bitcoin_logo.png';
+import EthuLogo from '../../assets/Ethereum_logo.png';
+import DogeLogo from '../../assets/Doge_log.png';
+import SolanaLogo from '../../assets/Solana_logo.png';
+import XRPLogo from '../../assets/XRP_logo.png';
 import { useEffect, useState } from "react";
 
 import LoginModel from './Login.jsx';
 
-import { LogOut } from "../services/Http_Post.jsx"
+import { LogOut } from "../../services/Http_Post.jsx"
 
 export default function Header() {
     const [isOpen, setIsOpen] =useState(false)

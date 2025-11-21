@@ -4,7 +4,6 @@ import Home from './pages/home.jsx'
 import Dashboard from './pages/dashboard.jsx'
 import { useState, useEffect } from "react";
 import { Settings } from "lucide-react";
-import getDB from "./components/OpenDB.jsx"
 
 function Home_Page() {
     return <Home />;
@@ -16,12 +15,6 @@ function Dash_Board() {
 
 function App() {
     const [darkMode, setDarkMode] = useState(false);
-
-    useEffect(() => {
-        (async () => {
-            await getDB();
-        })();
-    }, []);
 
     useEffect(() => {
     if (darkMode) {
