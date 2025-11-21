@@ -6,7 +6,7 @@ import jwt
 import logging
 from datetime import datetime
 
-from app.services.wallet_service import get_wallet_data_list_other
+from app.services.wallet_service import get_wallet_data_list_other,get_account_information_list
 from app.db.database import get_db
 
 logging.basicConfig( # 로그출력 형식
@@ -29,8 +29,8 @@ def Mapping(wallet_data):
         datainput[userid].append(data)
     
     ## 날짜 역순
-    for key, val in datainput.items():
-        datainput[key] = list(reversed(val))
+    # for key, val in datainput.items():
+    #     datainput[key] = list(reversed(val))
         
     senddata = list(datainput.values())
     return senddata
@@ -57,21 +57,19 @@ async def datalist(request: Request, getdata:LastTime, db: Session = Depends(get
         try:
             payload = jwt.decode(token, "dev_secret_key_12345", algorithms=["HS256"], leeway=10)
             user = payload["sub"]
-        except jwt.ExpiredSignatureError:
+        except (jwt.ExpiredSignatureError,jwt.InvalidTokenError):
             # 리플레쉬 토큰 또는 로그인 모달로 재이동하도록 진행
             print("JWT 만료 → user=None으로 처리 후 계속 진행")
-        except jwt.InvalidTokenError:
-            print("JWT 만료 → user=None으로 처리 후 계속 진행")
+      
     else :
         user = None
 
     ## DB 접근 필히 비동기로 접근 할 것
     try:
-        wallet_data = await get_wallet_data_list_other(db)
+        wallet_data = await get_account_information_list(db)
+        data = Mapping(wallet_data=wallet_data)
     except Exception as e:
+        logger.error(f"❌ 지갑 데이터 조회 오류: {e}")
         raise HTTPException(status_code=500, detail=f"지갑 데이터 조회 중 오류 발생: {str(e)}")
-    
-
-    data = Mapping(wallet_data=wallet_data)
 
     return data

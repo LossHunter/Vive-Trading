@@ -290,20 +290,21 @@ class LLMTradingExecution(Base):
 class AccountInformation(Base):
     __tablename__ = "account_information"
     
-    id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 Insert 순서 == 타임 테이블")
-    account_id = Column(Text, comment="계정 식별자") # userid
-    account_name = Column(Text, comment="계정 식별자 이름") # username
-    account_model = Column(Text, comment="계정 식별자 모델") # usermodel
-    account_logo = Column(Text, comment="계정 식별자 로고") # logo
-    account_why = Column(Text, comment="매수, 매도 사유")  # why
-    account_position = Column(Text, nullable=False, comment="보유 자산 화폐 코드 (예: BTC, KRW)") # position
-    account_btc = Column(Numeric(30, 10), comment="현재 보유중인 비트코인 수량") # btc
-    account_eth = Column(Numeric(30, 10), comment="현재 보유중인 이더리움 수량") # eth
-    account_doge = Column(Numeric(30, 10), comment="현재 보유중인 도지 수량") # doge
-    account_sol = Column(Numeric(30, 10), comment="현재 보유중인 솔리움 수량") # sol
-    account_xrp = Column(Numeric(30, 10), comment="현재 보유중인 리플 수량") # 리플
-    account_non = Column(Numeric(30, 10), comment="현재 보유중인 현재 남은 금액") # non
-    account_total = Column(Numeric(30, 10), comment="현재 총 계좌 금액") # total
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
+    user_id = Column(Text, comment="사용자 ID (계정 식별자)")
+    username = Column(Text, comment="사용자 이름")
+    model_name = Column(Text, comment="모델 이름")
+    logo = Column(Text, comment="로고 파일명")
+    why = Column(Text, comment="매수, 매도 사유")
+    position = Column(Text, nullable=False, comment="거래 포지션 (예: buy_to_enter, sell_to_exit, hold)")
+    btc = Column(Numeric(30, 10), comment="보유 비트코인 수량")
+    eth = Column(Numeric(30, 10), comment="보유 이더리움 수량")
+    doge = Column(Numeric(30, 10), comment="보유 도지코인 수량")
+    sol = Column(Numeric(30, 10), comment="보유 솔라나 수량")
+    xrp = Column(Numeric(30, 10), comment="보유 리플 수량")
+    krw = Column(Numeric(30, 10), comment="보유 원화 잔액")
+    total = Column(Numeric(30, 10), comment="총 자산 금액 (KRW 기준)")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="레코드 생성 시각 (UTC)")
 
 # ==================== 데이터베이스 유틸리티 함수 ====================
 

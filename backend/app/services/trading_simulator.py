@@ -45,16 +45,16 @@ class TradingSimulator:
         """
         try:
             account_id_str = str(account_id)
-            
-            # 기존 계좌 확인
-            existing = self.db.query(UpbitAccounts).filter(
-                UpbitAccounts.account_id == account_id_str
-            ).first()
-            
-            if existing:
-                logger.info(f"✅ 계좌 {account_id_str}는 이미 존재합니다.")
-                return True
-            
+            for market in UpbitAPIConfig.MAIN_MARKETS:
+                currency = market.split("-")[1]
+                existing = self.db.query(UpbitAccounts).filter(
+                    UpbitAccounts.account_id == account_id_str,
+                    UpbitAccounts.currency == currency
+                ).first()
+                if existing:
+                    logger.info(f"✅ {currency} 계좌 {account_id_str}는 이미 존재합니다.")
+                    return True
+        
             # KRW 초기 자본금 생성
             krw_account = UpbitAccounts(
                 account_id=account_id_str,
@@ -68,6 +68,22 @@ class TradingSimulator:
             )
             
             self.db.add(krw_account)
+            
+            # 5개 마켓 초기 계정 생성 (BTC, ETH, DOGE, SOL, XRP)
+            for market in UpbitAPIConfig.MAIN_MARKETS:
+                currency = market.split("-")[1]
+                coin_account = UpbitAccounts(
+                    account_id=account_id_str,
+                    currency=currency,
+                    balance=Decimal("0"),
+                    locked=Decimal("0"),
+                    avg_buy_price=Decimal("0"),
+                    avg_buy_price_modified=False,
+                    unit_currency="KRW",
+                    collected_at=datetime.now(timezone.utc)
+                )
+                self.db.add(coin_account)
+            
             self.db.commit()
             
             logger.info(f"✅ 계좌 {account_id_str} 초기화 완료 (KRW: {INITIAL_CAPITAL_KRW:,})")
@@ -316,8 +332,8 @@ class TradingSimulator:
             "signal_type": signal.signal,
             "signal_created_at": signal.created_at,
             "intended_price": intended_price,
-            "profit_target": signal.profit_target,
-            "stop_loss": signal.stop_loss,
+            #"profit_target": signal.profit_target,
+            #"stop_loss": signal.stop_loss,
         }
 
         try:
@@ -501,7 +517,7 @@ class TradingSimulator:
                     executed_quantity=quantity,
                     balance_after=krw_after,
                     execution_status="success",
-                    notes=f"매수 완료: {quantity:.8f} {signal.coin} @ {current_price:,.2f} KRW"
+                    #notes=f"매수 완료: {quantity:.8f} {signal.coin} @ {current_price:,.2f} KRW"
                 )
                 logger.info("-" * 80)
                 return True
@@ -611,7 +627,7 @@ class TradingSimulator:
                     executed_quantity=quantity,
                     balance_after=coin_after,
                     execution_status="success",
-                    notes=f"매도 완료: {quantity:.8f} {signal.coin} @ {current_price:,.2f} KRW. {', '.join(notes_parts) if notes_parts else ''}"
+                    #notes=f"매도 완료: {quantity:.8f} {signal.coin} @ {current_price:,.2f} KRW. {', '.join(notes_parts) if notes_parts else ''}"
                 )
                 logger.info("-" * 80)
                 return True
@@ -765,7 +781,7 @@ class TradingSimulator:
                 balance_before=balance_before,
                 balance_after=balance_after,
                 signal_created_at=signal_created_at,
-                time_delay=Decimal(str(time_delay)) if time_delay else None,
+              #  time_delay=Decimal(str(time_delay)) if time_delay else None,
             )
             
             self.db.add(execution)

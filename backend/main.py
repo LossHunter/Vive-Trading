@@ -32,7 +32,7 @@ from app.services.wallet_service import (
     get_wallet_data_30days,
     broadcast_wallet_data_periodically
 )
-from app.services.order_execution_service import execute_signal_orders
+#from app.services.order_execution_service import execute_signal_orders
 from app.services.data_collector_service import (
     collect_ticker_data_periodically,
     collect_candle_data_periodically,
@@ -49,6 +49,8 @@ from app.services.vllm_model_registry import refresh_available_models
 from sqlalchemy import desc
 
 from app.services.trading_simulator import initialize_all_accounts
+
+from app.services.wallet_service import collect_account_information_periodically
 
 
 # 로깅 설정
@@ -90,7 +92,7 @@ async def lifespan(app: FastAPI):
         # ============================================
         # 테이블 초기화 설정 (필요시 True로 변경)
         # ============================================
-        RESET_TABLES_ON_STARTUP = True  # True로 변경하면 서버 시작 시 테이블 초기화 실행
+        RESET_TABLES_ON_STARTUP = False  # True로 변경하면 서버 시작 시 테이블 초기화 실행
 
         if RESET_TABLES_ON_STARTUP:
             # 특정 테이블 초기화 및 초기 데이터 설정
@@ -126,7 +128,7 @@ async def lifespan(app: FastAPI):
         # ============================================
         # LLM 모델 계좌 초기화 설정 (필요시 True로 변경)
         # ============================================
-        INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP = True  # False로 변경하면 계좌 초기화 건너뜀
+        INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP = False  # False로 변경하면 계좌 초기화 건너뜀
 
         if INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP:
             from app.services.trading_simulator import TradingSimulator
@@ -134,7 +136,7 @@ async def lifespan(app: FastAPI):
 
             db = SessionLocal()
             try:
-                logger.info("💰 LLM 모델 계좌 초기화 시작...")
+                logger.info("💰 LLM 모델 계좌 초기화 시작... (무조건 초기화 진행)")
                 simulator = TradingSimulator(db)
                 results = simulator.initialize_all_model_accounts()
 
@@ -197,6 +199,7 @@ async def lifespan(app: FastAPI):
         if DataCollectionConfig.ENABLE_ORDERBOOK:
             start_task(collect_orderbook_data_periodically(), "collect_orderbook_data")
 
+        start_task(collect_account_information_periodically(), "collect_account_information")
         start_task(broadcast_wallet_data_periodically(manager), "broadcast_wallet_data")
         start_task(calculate_indicators_periodically(), "calculate_indicators")
         start_task(run_trade_decision_loop(), "run_trade_decision_loop")
@@ -1128,37 +1131,37 @@ async def get_llm_trading_signals_by_prompt(prompt_id: int, db: Session = Depend
 # 나중에 실제 외부 시스템으로 교체할 때 이 엔드포인트를 제거하거나 비활성화할 수 있습니다.
 # 비활성화 방법: config.py에서 OrderExecutionConfig.ENABLE_ORDER_EXECUTION = False 설정
 # ============================================================================
-@app.post("/api/order/execute")
-async def execute_orders(
-    prompt_id: Optional[int] = Body(None, description="프롬프트 ID (None이면 최신 signal만 체결)"),
-    db: Session = Depends(get_db)
-):
-    """
-    [임시 테스트용] 주문 체결 API
-    저장된 LLM 거래 신호를 기반으로 가상의 주문을 체결하고 upbit_accounts를 업데이트합니다.
+# @app.post("/api/order/execute")
+# async def execute_orders(
+#     prompt_id: Optional[int] = Body(None, description="프롬프트 ID (None이면 최신 signal만 체결)"),
+#     db: Session = Depends(get_db)
+# ):
+#     """
+#     [임시 테스트용] 주문 체결 API
+#     저장된 LLM 거래 신호를 기반으로 가상의 주문을 체결하고 upbit_accounts를 업데이트합니다.
     
-    ⚠️ 주의: 이 API는 임시 테스트용입니다.
-    실제 외부 시스템으로 교체할 때 이 엔드포인트를 제거하거나 비활성화할 수 있습니다.
+#     ⚠️ 주의: 이 API는 임시 테스트용입니다.
+#     실제 외부 시스템으로 교체할 때 이 엔드포인트를 제거하거나 비활성화할 수 있습니다.
     
-    Args:
-        prompt_id: 프롬프트 ID (None이면 최신 signal만 체결)
+#     Args:
+#         prompt_id: 프롬프트 ID (None이면 최신 signal만 체결)
     
-    Returns:
-        dict: 체결 결과 통계
-    """
-    # 주문 체결 기능이 비활성화되어 있으면 403 반환
-    if not OrderExecutionConfig.ENABLE_ORDER_EXECUTION:
-        raise HTTPException(
-            status_code=403,
-            detail="주문 체결 기능이 비활성화되어 있습니다. (임시 테스트용 기능)"
-        )
+#     Returns:
+#         dict: 체결 결과 통계
+#     """
+#     # 주문 체결 기능이 비활성화되어 있으면 403 반환
+#     if not OrderExecutionConfig.ENABLE_ORDER_EXECUTION:
+#         raise HTTPException(
+#             status_code=403,
+#             detail="주문 체결 기능이 비활성화되어 있습니다. (임시 테스트용 기능)"
+#         )
     
-    try:
-        results = execute_signal_orders(db, prompt_id)
-        return results
-    except Exception as e:
-        logger.error(f"❌ 주문 체결 API 오류: {e}")
-        raise HTTPException(status_code=500, detail=f"주문 체결 중 오류 발생: {str(e)}")
+#     try:
+#         results = execute_signal_orders(db, prompt_id)
+#         return results
+#     except Exception as e:
+#         logger.error(f"❌ 주문 체결 API 오류: {e}")
+#         raise HTTPException(status_code=500, detail=f"주문 체결 중 오류 발생: {str(e)}")
     
 
 

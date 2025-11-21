@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from uuid import UUID
 from app.core.config import settings, LLMAccountConfig
-from sqlalchemy import desc, cast, Text
+from sqlalchemy import desc
 from datetime import datetime
 
 from app.db.database import LLMTradingSignal, SessionLocal, UpbitAccounts, UpbitTicker
