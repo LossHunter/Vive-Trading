@@ -2,6 +2,7 @@
 import '../../styles/AnalyzePanel.css';
 import AanalyzeModal from "./AnalyzeModal"
 
+
 export default function Analyze({ sender_analyze }) {
     const displayRef = useRef(null);
     const containerRef = useRef(null);
@@ -9,6 +10,16 @@ export default function Analyze({ sender_analyze }) {
     const [selectedUser, setSelectedUser] = useState("README");
     const [isOpen, setIsOpen] = useState(false);
 
+    const parseYYMMDDHHMM = (str) => {
+        if (!str) return null;
+        const yy = parseInt(str.slice(0, 2), 10);
+        const year = yy >= 70 ? 1900 + yy : 2000 + yy;
+        const month = parseInt(str.slice(2, 4), 10) - 1;
+        const day = parseInt(str.slice(4, 6), 10);
+        const hour = parseInt(str.slice(6, 8), 10);
+        const min = parseInt(str.slice(8, 10), 10);
+        return new Date(year, month, day, hour, min);
+    };
 
 
     // 외부 클릭 시 드롭다운 닫기
@@ -37,8 +48,6 @@ export default function Analyze({ sender_analyze }) {
     
     return (
         <div className="right-panel">
-            <div className="right-tag">History</div>
-
             <div className="custom-select-container" ref={containerRef}>
                 <div className="custom-select-header" onClick={() => setIsOpen(!isOpen)}>
                     {selectedUser}
@@ -73,11 +82,11 @@ export default function Analyze({ sender_analyze }) {
                 <div className="time">
                     <p>
                     Time : {currentAnalyze?.time?.at(-1)
-                        ? new Date(currentAnalyze.time.at(-1)).getFullYear() + "년 " +
-                        String(new Date(currentAnalyze.time.at(-1)).getMonth() + 1).padStart(2, "0") + "월 " +
-                        String(new Date(currentAnalyze.time.at(-1)).getDate()).padStart(2, "0") + "일 " +
-                        String(new Date(currentAnalyze.time.at(-1)).getHours()).padStart(2, "0") + "시 " +
-                        String(new Date(currentAnalyze.time.at(-1)).getMinutes()).padStart(2, "0") + "분"
+                        ? (() => {
+                            const date = parseYYMMDDHHMM(currentAnalyze.time.at(-1));
+                            if (!date) return "-";
+                            return `${date.getFullYear()}년 ${String(date.getMonth() + 1).padStart(2, "0")}월 ${String(date.getDate()).padStart(2, "0")}일 ${String(date.getHours()).padStart(2, "0")}시 ${String(date.getMinutes()).padStart(2, "0")}분`;
+                        })()
                         : "-"
                     }
                     </p>

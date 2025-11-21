@@ -1,0 +1,74 @@
+C:.
+│  App.css
+│  App.js
+│  App.jsx
+│  index.css
+│  index.js
+│  main.jsx
+│
+├─assets // 이미지파일
+│      Bitcoin_logo.png
+│      ChatGPT_LOGO.png
+│      DeepSeek_LOGO.png
+│      Doge_log.png
+│      Ethereum_logo.png
+│      Gemini_LOGO.png
+│      Google-Sign.svg
+│      Google_Login.png
+│      Grok_LOGO.png
+│      react.svg
+│      Solana_logo.png
+│      XRP_logo.png
+│
+├─components
+│  ├─charts // 차트 모음집
+│  │      Chart.jsx
+│  │      EChart.jsx
+│  │      LightChart.jsx
+│  │      ReChart.jsx
+│  │      RoundChart.jsx
+│  │
+│  ├─common // 모든 페이지 공통 사용
+│  │      Footer.jsx
+│  │      Header.jsx
+│  │      Loading.jsx
+│  │      Login.jsx
+│  │      OpenDB.jsx // 더이상 사용 안함
+│  │
+│  ├─dashboard // 대쉬보드 파일
+│  │      Account.jsx // 어카운트
+│  │      ModelData.jsx // 모델 학습 데이터
+│  │      Prompt.jsx // 현재 삽입하고 있는 프롬프트
+│  │      Readme.jsx // 리드미
+│  │      WanChart.jsx // 모델 학습 데이터에 넣는 Wand DB 차트
+│  │
+│  └─home
+│          AnalyzeModal.jsx // 홈 우측 패널 버튼 클릭 시 나오는 모달
+│          AnalyzePanel.jsx // 홈 우측 패널
+│          Wallet_Rank.jsx // 홈 왼쪽 패널
+│
+├─pages
+│      dashboard.jsx
+│      home.jsx
+│
+├─services
+│      Http_Get.jsx // 보안 문제로 폐기
+│      Http_Post.jsx // 주 사용 처
+│      Socket.jsx // 데이터 형식 문제로 폐기
+│      UpbitSocket.jsx // 업비트 실시간 잔고 불러오는 jsx
+│      UpdateResearch.jsx
+│      WanDB_Api.jsx // Wan db 차트
+│
+└─styles
+        Account.css
+        AnalyzeModal.css
+        AnalyzePanel.css
+        Chart.css
+        dashboard.css
+        Footer.css
+        Header.css
+        home.css
+        Loading.css
+        Main-Login.css
+        ModelData.css
+        Wallet_Rank.css

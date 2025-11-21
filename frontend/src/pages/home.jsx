@@ -14,7 +14,7 @@ import WalletList from '../components/home/Wallet_Rank.jsx';
 // serviecs 폴더
 // import { fetchAllData  } from '../services/Http_Get.jsx';
 // import { useSocketData } from '../services/Socket.jsx';
-import { versionCheck, LoginfetchAllData } from '../services/Http_Post.jsx';
+import LoginfetchAllData from '../services/POST/LoginfetchAllData';
 
 // components 폴더
 import Loading from "../components/common/Loading.jsx"

@@ -1,10 +1,11 @@
 /* header */
 header {
-    height: 100px;
+    height: 70px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-direction: column;
+    margin-top: 5px;
     gap: 15px;
     padding-top: 5px;
     /* border: 2px solid black; /* header 영역 border 시각화 용 */

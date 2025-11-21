@@ -8,21 +8,9 @@ export default function AanalyzeModal({ currentAnalyze, modalopen, setModalOpen 
     // Hook은 항상 최상단에서 호출
     const filteredAnalysis = useMemo(() => {
         if (!currentAnalyze?.time) return [];
-
-        const formatTime = (timestamp) => {
-            if (!timestamp) return undefined;
-            const date = new Date(timestamp);
-            const yyyy = date.getFullYear();
-            const mm = String(date.getMonth() + 1).padStart(2, "0");
-            const dd = String(date.getDate()).padStart(2, "0");
-            const hh = String(date.getHours()).padStart(2, "0");
-            const min = String(date.getMinutes()).padStart(2, "0");
-            return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
-        };
-
         return currentAnalyze.time
             .map((time, index) => ({
-                time: formatTime(time), // 타임스탬프 → YYYY-MM-DD HH:MM
+                time: time, // 타임스탬프 → YYYY-MM-DD HH:MM
                 usemodel: currentAnalyze.usemodel?.[index],
                 why: currentAnalyze.why?.[index],
                 position: currentAnalyze.position?.[index],
@@ -51,10 +39,10 @@ export default function AanalyzeModal({ currentAnalyze, modalopen, setModalOpen 
                 {filteredAnalysis.length > 0 ? (
                     filteredAnalysis.map((item, index) => (
                         <div className="history-card" key={index}>
-                            <h2>Time: {item.time ?? "Unknown Time"}</h2>
-                            <p>Model: {item.usemodel ?? "Unknown Model"}</p>
-                            <p>Reason: {item.why ?? "No Reason"}</p>
-                            <p>Position: {item.position ?? "No Position"}</p>
+                            <h2>## Time: {item.time ?? "Unknown Time"}</h2>
+                            <p>* Model: {item.usemodel ?? "Unknown Model"}</p>
+                            <p>* Reason: {item.why ?? "No Reason"}</p>
+                            <p>* Position: {item.position ?? "No Position"}</p>
                         </div>
                     ))
                 ) : (

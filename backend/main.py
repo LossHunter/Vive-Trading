@@ -335,7 +335,10 @@ async def get_ticker(db: Session = Depends(get_db)):
 ####################################################################################################
 
 # 프론트엔드 부분 app.routers 폴더에서 관리 예정
-from app.routers import SendData, Wandb, Login_jwt, GetUser
+from app.routers import Wandb, Login_jwt, GetUser, SendData
+from fastapi.middleware.gzip import GZipMiddleware
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 ## wallet 전송
 app.include_router(SendData.router, prefix="/api") 
@@ -349,7 +352,13 @@ app.include_router(Login_jwt.router, prefix="/api")
 ## userdata 전송
 app.include_router(GetUser.router, prefix="/api")
 
+####################################################################################################################################
+
+
 # 보안 이슈로 Post방식 쓸 예
+# 해당 부분들 더이상 안 씀
+# 확인 후 삭제 요청 
+
 # @app.get("/api/wallet")
 # async def get_wallet_endpoint(db: Session = Depends(get_db)):
 #     """
@@ -365,64 +374,70 @@ app.include_router(GetUser.router, prefix="/api")
 #         raise HTTPException(status_code=500, detail=f"지갑 데이터 조회 중 오류 발생: {str(e)}")
 
 
-@app.get("/api/data_stream")
-async def get_data_stream():
-    """
-    데이터 스트림 엔드포인트
-    프론트엔드에서 초기 데이터를 스트리밍으로 받기 위한 엔드포인트입니다.
-    30일치 지갑 데이터를 포함하여 전송합니다.
-    """
-    from app.db.database import UpbitTicker, UpbitCandlesMinute3
-    from sqlalchemy import desc
+# @app.get("/api/data_stream")
+# async def get_data_stream():
+#     """
+#     데이터 스트림 엔드포인트
+#     프론트엔드에서 초기 데이터를 스트리밍으로 받기 위한 엔드포인트입니다.
+#     30일치 지갑 데이터를 포함하여 전송합니다.
+#     """
+#     from app.db.database import UpbitTicker, UpbitCandlesMinute3
+#     from sqlalchemy import desc
     
-    async def generate():
-        """스트리밍 데이터 생성기"""
-        db = SessionLocal()
-        try:
-            # 30일치 지갑 데이터 조회
-            wallet_data_30days = await get_wallet_data_30days(db)
+#     async def generate():
+#         """스트리밍 데이터 생성기"""
+#         db = SessionLocal()
+#         try:
+#             # 30일치 지갑 데이터 조회
+#             wallet_data_30days = await get_wallet_data_30days(db)
             
-            # 최신 티커 데이터 조회
-            tickers = db.query(UpbitTicker).order_by(desc(UpbitTicker.collected_at)).limit(100).all()
+#             # 최신 티커 데이터 조회
+#             tickers = db.query(UpbitTicker).order_by(desc(UpbitTicker.collected_at)).limit(100).all()
             
-            # 최신 캔들 데이터 조회
-            candles = db.query(UpbitCandlesMinute3).order_by(desc(UpbitCandlesMinute3.collected_at)).limit(100).all()
+#             # 최신 캔들 데이터 조회
+#             candles = db.query(UpbitCandlesMinute3).order_by(desc(UpbitCandlesMinute3.collected_at)).limit(100).all()
             
-            # 데이터를 JSON 형식으로 변환하여 스트리밍
-            data_list = []
+#             # 데이터를 JSON 형식으로 변환하여 스트리밍
+#             data_list = []
             
-            # 30일치 지갑 데이터 추가
-            for wallet in wallet_data_30days:
-                data_list.append({
-                    "type": "wallet",
-                    "data": wallet
-                })
+#             # 30일치 지갑 데이터 추가
+#             for wallet in wallet_data_30days:
+#                 data_list.append({
+#                     "type": "wallet",
+#                     "data": wallet
+#                 })
             
-            # 티커 데이터 추가
-            for ticker in tickers:
-                data_list.append({
-                    "type": "ticker",
-                    "market": ticker.market,
-                    "trade_price": float(ticker.trade_price) if ticker.trade_price else None,
-                    "collected_at": ticker.collected_at.isoformat() if ticker.collected_at else None
-                })
+#             # 티커 데이터 추가
+#             for ticker in tickers:
+#                 data_list.append({
+#                     "type": "ticker",
+#                     "market": ticker.market,
+#                     "trade_price": float(ticker.trade_price) if ticker.trade_price else None,
+#                     "collected_at": ticker.collected_at.isoformat() if ticker.collected_at else None
+#                 })
             
-            # 캔들 데이터 추가
-            for candle in candles:
-                data_list.append({
-                    "type": "candle",
-                    "market": candle.market,
-                    "trade_price": float(candle.trade_price) if candle.trade_price else None,
-                    "candle_date_time_utc": candle.candle_date_time_utc.isoformat() if candle.candle_date_time_utc else None
-                })
+#             # 캔들 데이터 추가
+#             for candle in candles:
+#                 data_list.append({
+#                     "type": "candle",
+#                     "market": candle.market,
+#                     "trade_price": float(candle.trade_price) if candle.trade_price else None,
+#                     "candle_date_time_utc": candle.candle_date_time_utc.isoformat() if candle.candle_date_time_utc else None
+#                 })
             
-            # JSON 라인으로 전송
-            for data in data_list:
-                yield json.dumps(data) + "\n"
-        finally:
-            db.close()
+#             # JSON 라인으로 전송
+#             for data in data_list:
+#                 yield json.dumps(data) + "\n"
+#         finally:
+#             db.close()
     
-    return StreamingResponse(generate(), media_type="application/json")
+#     return StreamingResponse(generate(), media_type="application/json")
+
+####################################################################################################################################
+
+
+
+
 
 
 # ==================== 과거 데이터 수집 API ====================

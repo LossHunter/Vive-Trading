@@ -141,7 +141,7 @@
 .usemodel p, .position p, .why p, .time p {
     color: inherit;
     font-weight: bold;
-    font-size: 18px;
+    font-size: 14px;
 }
 
 
@@ -153,15 +153,16 @@
     margin: 10px 0;
 }
 
+/* 다크 모드용 변경 */
 .ReadMe h3 {
     margin: 0 0 10px 0;
-    font-size: 1.5rem;
-    color: #333;
+    font-size: 20pox;
+    color: inherit;
 }
 
 .ReadMe p {
     margin: 5px 0;
-    font-size: 1rem;
-    color: #555;
+    font-size: 15px;
+    color: inherit;
     line-height: 1.4;
 }
