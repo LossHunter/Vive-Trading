@@ -203,12 +203,20 @@ class LLMAccountConfig:
     }
 
     # 모델별 전략 매핑 (기본값)
-    # 사용자가 직접 수정하여 모델별 성향을 지정할 수 있습니다.
+    # 사용 가능한 전략: "aggressive", "stable", "neutral"
+    # 모든 모델은 위 3가지 전략 중 하나를 자유롭게 선택하여 설정할 수 있습니다.
     MODEL_STRATEGY_MAP: dict = {
-        "google/gemma-3-27b-it": "stable",
-        "openai/gpt-oss-120b": "aggressive",
+        # Google Gemma 2 27B
+        "google/gemma-3-27b-it": "neutral", 
+        
+        # OpenAI GPT-4o (OSS 120B)
+        "openai/gpt-oss-120b": "neutral",
+        
+        # Qwen 2.5 32B (Thinking)
         "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8": "neutral",
-        "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": "aggressive",
+        
+        # DeepSeek R1 Distill Qwen 14B
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": "neutral",
     }
     
     @classmethod
