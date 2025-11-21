@@ -126,7 +126,8 @@ def _save_trading_signal(
     prompt_id: int, 
     decision: TradeDecision, 
     account_id: Optional[UUID] = None,
-    thinking: Optional[str] = None # thinking 파라미터 추가
+    thinking: Optional[str] = None, # thinking 파라미터 추가
+    full_prompt: Optional[str] = None # full_prompt 파라미터 추가 (ORPO 학습용)
 ) -> LLMTradingSignal:    
     """
     LLM 응답을 llm_trading_signal 테이블에 저장
@@ -137,6 +138,7 @@ def _save_trading_signal(
         decision: 트레이딩 결정 데이터
         account_id: 계정 ID (LLM 모델별 매핑)
         thinking: LLM의 사고 과정 (CoT, <thinking>...</thinking>)
+        full_prompt: LLM에게 전송된 전체 프롬프트 (System + User, ORPO 학습용)
     
     Returns:
         LLMTradingSignal: 저장된 거래 신호 객체
@@ -174,6 +176,7 @@ def _save_trading_signal(
         invalidation_condition=decision.invalidation_condition,
         justification=decision.justification,
         thinking=thinking, # 추가
+        full_prompt=full_prompt, # 추가 (ORPO 학습용)
     )
 
     db.add(signal) # INSERT 예약
@@ -223,6 +226,14 @@ async def get_trade_decision(
 {json.dumps(extra_context, ensure_ascii=False, indent=2) if extra_context else "None"}
 
 Based on the information above, please make a trading decision. You must respond in JSON format, and the "coin" and "signal" fields are mandatory."""
+
+        # ORPO 학습용 전체 프롬프트 구성 (System + User)
+        full_prompt_for_training = f"""=== SYSTEM PROMPT ===
+{system_content}
+
+=== USER PROMPT ===
+{user_content}
+"""
 
         completion = client.chat.completions.create(
             model=model, # 전달받은 모델 이름 사용
@@ -292,7 +303,8 @@ Based on the information above, please make a trading decision. You must respond
                 prompt_id=prompt_data.id,
                 decision=validated_decision,
                 account_id=account_id,
-                thinking=thinking_from_llm  # thinking 전달
+                thinking=thinking_from_llm,  # thinking 전달
+                full_prompt=full_prompt_for_training  # ORPO 학습용 전체 프롬프트 전달
             )
             logger.info(
                 "✅ LLM 거래 신호 저장 완료 (prompt_id=%s, prompt_id=%s, coin=%s, model=%s, account_id=%s)",

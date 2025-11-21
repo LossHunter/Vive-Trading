@@ -251,6 +251,7 @@ class LLMTradingSignal(Base):
     invalidation_condition = Column(Text, comment="무효화 조건 설명")
     justification = Column(Text, comment="거래 근거 설명")
     thinking = Column(Text, comment="LLM의 사고 과정 (Chain of Thought, CoT)")
+    full_prompt = Column(Text, comment="LLM에게 전송된 전체 프롬프트 (System + User, ORPO 학습용)")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="신호 생성 시각 (UTC)")
 
 class LLMTradingExecution(Base):
