@@ -201,6 +201,15 @@ class LLMAccountConfig:
         "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8": "3",
         "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": "4",
     }
+
+    # 모델별 전략 매핑 (기본값)
+    # 사용자가 직접 수정하여 모델별 성향을 지정할 수 있습니다.
+    MODEL_STRATEGY_MAP: dict = {
+        "google/gemma-3-27b-it": "stable",
+        "openai/gpt-oss-120b": "aggressive",
+        "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8": "neutral",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": "aggressive",
+    }
     
     @classmethod
     def get_account_id_for_model(cls, model_name: str) -> str:
@@ -246,6 +255,19 @@ class LLMAccountConfig:
                 return model_name
         
         return None
+
+    @classmethod
+    def get_strategy_for_model(cls, model_name: str) -> str:
+        """
+        모델명에 해당하는 전략 반환
+        
+        Args:
+            model_name: LLM 모델명
+        
+        Returns:
+            str: 전략 (aggressive, stable, neutral) - 기본값은 neutral
+        """
+        return cls.MODEL_STRATEGY_MAP.get(model_name, "neutral")
     
 
     

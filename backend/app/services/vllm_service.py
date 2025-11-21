@@ -18,6 +18,7 @@ from app.services.llm_prompt_generator import LLMPromptGenerator
 from app.services.vllm_model_registry import get_preferred_model_name
 from app.services.trading_simulator import TradingSimulator
 from app.services.llm_response_validator import validate_trade_decision, build_retry_prompt
+from app.core.prompts import STRATEGY_PROMPTS, TradingStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +207,10 @@ async def get_trade_decision(
         system_content = _build_system_message() # 응답형태 지정
         user_payload = _build_user_payload(prompt_data, extra_context)
         
+        # 전략 조회
+        strategy_key = LLMAccountConfig.get_strategy_for_model(model)
+        strategy_prompt = STRATEGY_PROMPTS.get(strategy_key, STRATEGY_PROMPTS[TradingStrategy.NEUTRAL])
+        
         # 사용자 메시지를 텍스트 형식으로 변환 (JSON이 아닌 읽기 쉬운 형식)
         user_content = f"""다음은 현재 시장 상황과 계정 정보입니다:
 
@@ -214,6 +219,9 @@ async def get_trade_decision(
 
 ## 추가 컨텍스트
 {json.dumps(extra_context, ensure_ascii=False, indent=2) if extra_context else "없음"}
+
+## 트레이딩 전략 (필수 준수)
+{strategy_prompt}
 
 위 정보를 바탕으로 거래 결정을 내려주세요. 반드시 JSON 형식으로 응답해야 하며, "coin"과 "signal" 필드는 필수입니다."""
 
