@@ -69,6 +69,7 @@ async def datalist(request: Request, getdata:Checking, db: Session = Depends(get
     try:
         wallet_data = await get_account_information_list(db)
         data = Mapping(wallet_data=wallet_data)
+        logger.info(f"✅ 지갑 데이터 전송 완료 ({len(data)}명, 정분 기준)")
     except Exception as e:
         logger.error(f"❌ 지갑 데이터 조회 오류: {e}")
         raise HTTPException(status_code=500, detail=f"지갑 데이터 조회 중 오류 발생: {str(e)}")

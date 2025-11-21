@@ -7,15 +7,26 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Optional, TYPE_CHECKING
-from sqlalchemy.orm import Session
-from sqlalchemy import desc,func,and_
-from app.core.config import UpbitAPIConfig, LLMAccountConfig
-from app.db.database import SessionLocal, UpbitAccounts, UpbitTicker, LLMTradingSignal
-from app.core.schedule_utils import calculate_wait_seconds_until_next_scheduled_time
 from decimal import Decimal
-from app.db.database import AccountInformation
+from typing import List, Dict, Optional, TYPE_CHECKING
 
+# SQLAlchemy ORM & 함수
+from sqlalchemy.orm import Session, aliased
+from sqlalchemy import func, desc, and_, Integer, Column, literal_column, select
+from sqlalchemy.sql import over
+
+# 앱 설정 및 유틸
+from app.core.config import UpbitAPIConfig, LLMAccountConfig
+from app.core.schedule_utils import calculate_wait_seconds_until_next_scheduled_time
+
+# DB 모델
+from app.db.database import (
+    SessionLocal,
+    UpbitAccounts,
+    UpbitTicker,
+    LLMTradingSignal,
+    AccountInformation
+)
 
 if TYPE_CHECKING:
     from app.services.connection_manager import ConnectionManager
@@ -503,21 +514,42 @@ async def get_account_information_list(db: Session, days: int = 30) -> List[Dict
 
 
         #정시 기준 매 1시간마다의 마지막 데이터.
-        sub = (
+        # sub = (
+        #     db.query(
+        #         func.date_trunc('hour', AccountInformation.created_at).label("hour"),
+        #         func.max(AccountInformation.created_at).label("max_time")
+        #     )
+        #     .group_by(func.date_trunc('hour', AccountInformation.created_at))
+        #     .order_by(func.date_trunc('hour', AccountInformation.created_at).asc())
+        #     .limit(30)
+        #     .subquery()
+        # )
+
+        # records = (
+        #     db.query(AccountInformation)
+        #     .join(sub, AccountInformation.created_at == sub.c.max_time)
+        #     .order_by(AccountInformation.created_at.asc())
+        #     .all()
+        # )
+
+        subquery = (
             db.query(
-                func.date_trunc('hour', AccountInformation.created_at).label("hour"),
-                func.max(AccountInformation.created_at).label("max_time")
+                AccountInformation,
+                func.row_number()
+                .over(
+                    partition_by=AccountInformation.username,  # username별 그룹
+                    order_by=AccountInformation.created_at.desc()  # 최신순
+                )
+                .label("rn")
             )
-            .group_by(func.date_trunc('hour', AccountInformation.created_at))
-            .order_by(func.date_trunc('hour', AccountInformation.created_at).asc())
-            .limit(30)
             .subquery()
         )
 
+        # 2. rn <= 30 조건으로 필터링
         records = (
-            db.query(AccountInformation)
-            .join(sub, AccountInformation.created_at == sub.c.max_time)
-            .order_by(AccountInformation.created_at.asc())
+            db.query(subquery)
+            .filter(subquery.c.rn <= 30)
+            .order_by(subquery.c.username, subquery.c.created_at.asc())  # username별 오름차순 정렬
             .all()
         )
 
@@ -592,7 +624,26 @@ async def collect_account_information_periodically():
             logger.error(f"❌ AccountInformation 수집 오류: {e}")
             await asyncio.sleep(60)
 
-
+def _map_wallet_data_by_user(wallet_data: List[Dict]) -> List[List[Dict]]:
+    """
+    지갑 데이터를 userId별로 그룹화
+    SendData.py의 Mapping 함수와 동일한 로직
+    
+    Args:
+        wallet_data: 평탄화된 지갑 데이터 리스트
+    
+    Returns:
+        List[List[Dict]]: userId별로 그룹화된 배열의 배열
+    """
+    datainput = {}
+    for data in wallet_data:
+        userid = data["userId"]
+        if userid not in datainput:
+            datainput[userid] = []
+        datainput[userid].append(data)
+    
+    senddata = list(datainput.values())
+    return senddata
 
 
 async def broadcast_wallet_data_periodically(manager: "ConnectionManager"):
@@ -615,11 +666,11 @@ async def broadcast_wallet_data_periodically(manager: "ConnectionManager"):
             try:
                 wallet_data = await get_account_information_list(db)
                 
-                await manager.broadcast(json.dumps({
-                    "type": "wallet",
-                    "data": wallet_data,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }))
+                mapped_data = _map_wallet_data_by_user(wallet_data)
+                
+                # 프론트엔드가 기대하는 형식으로 직접 전송 (배열의 배열)
+                await manager.broadcast(json.dumps(mapped_data))
+
 
                 logger.debug(f"✅ 지갑 데이터 전송 완료 ({len(wallet_data)}명, 정분 기준)")
             finally:

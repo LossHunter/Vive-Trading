@@ -202,7 +202,7 @@ async def lifespan(app: FastAPI):
         start_task(collect_account_information_periodically(), "collect_account_information")
         start_task(broadcast_wallet_data_periodically(manager), "broadcast_wallet_data")
         start_task(calculate_indicators_periodically(), "calculate_indicators")
-        start_task(run_trade_decision_loop(), "run_trade_decision_loop")
+       # start_task(run_trade_decision_loop(), "run_trade_decision_loop")
 
         logger.info("✅ 백엔드 서버 시작 완료")
 
