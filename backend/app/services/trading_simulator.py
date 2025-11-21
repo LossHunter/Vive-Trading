@@ -45,16 +45,16 @@ class TradingSimulator:
         """
         try:
             account_id_str = str(account_id)
-            
-            # 기존 계좌 확인
-            existing = self.db.query(UpbitAccounts).filter(
-                UpbitAccounts.account_id == account_id_str
-            ).first()
-            
-            if existing:
-                logger.info(f"✅ 계좌 {account_id_str}는 이미 존재합니다.")
-                return True
-            
+            for market in UpbitAPIConfig.MAIN_MARKETS:
+                currency = market.split("-")[1]
+                existing = self.db.query(UpbitAccounts).filter(
+                    UpbitAccounts.account_id == account_id_str,
+                    UpbitAccounts.currency == currency
+                ).first()
+                if existing:
+                    logger.info(f"✅ {currency} 계좌 {account_id_str}는 이미 존재합니다.")
+                    return True
+        
             # KRW 초기 자본금 생성
             krw_account = UpbitAccounts(
                 account_id=account_id_str,
@@ -68,6 +68,22 @@ class TradingSimulator:
             )
             
             self.db.add(krw_account)
+            
+            # 5개 마켓 초기 계정 생성 (BTC, ETH, DOGE, SOL, XRP)
+            for market in UpbitAPIConfig.MAIN_MARKETS:
+                currency = market.split("-")[1]
+                coin_account = UpbitAccounts(
+                    account_id=account_id_str,
+                    currency=currency,
+                    balance=Decimal("0"),
+                    locked=Decimal("0"),
+                    avg_buy_price=Decimal("0"),
+                    avg_buy_price_modified=False,
+                    unit_currency="KRW",
+                    collected_at=datetime.now(timezone.utc)
+                )
+                self.db.add(coin_account)
+            
             self.db.commit()
             
             logger.info(f"✅ 계좌 {account_id_str} 초기화 완료 (KRW: {INITIAL_CAPITAL_KRW:,})")

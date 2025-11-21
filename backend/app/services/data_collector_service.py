@@ -208,44 +208,6 @@ async def collect_orderbook_data_periodically():
             await asyncio.sleep(5)
 
 
-def get_latest_candle_time(db: Session, market: str, use_day_candles: bool = True) -> Optional[datetime]:
-    """
-    DB에서 가장 최신 캔들 데이터의 발생 시간 조회
-    데이터 수집 시간(collected_at)이 아닌 데이터 자체 발생 시간(candle_date_time_utc)을 기준으로 합니다.
-    
-    Args:
-        db: 데이터베이스 세션
-        market: 마켓 코드
-        use_day_candles: True면 일봉, False면 3분봉
-    
-    Returns:
-        datetime: 가장 최신 캔들 발생 시간 (UTC, timezone-aware), 데이터가 없으면 None
-    """
-    if use_day_candles:
-        latest = db.query(UpbitDayCandles.candle_date_time_utc).filter(
-            UpbitDayCandles.market == market
-        ).order_by(desc(UpbitDayCandles.candle_date_time_utc)).first()
-    else:
-        latest = db.query(UpbitCandlesMinute3.candle_date_time_utc).filter(
-            UpbitCandlesMinute3.market == market
-        ).order_by(desc(UpbitCandlesMinute3.candle_date_time_utc)).first()
-    
-    if latest:
-        result = latest[0]
-        # timezone-aware로 보장 (timezone-naive인 경우 UTC로 설정)
-        if result.tzinfo is None:
-            logger.debug(f"🔍 [get_latest_candle_time] {market} timezone-naive 감지, UTC로 변환")
-            result = result.replace(tzinfo=timezone.utc)
-        else:
-            # timezone-aware인 경우 UTC로 변환 (다른 timezone일 수 있음)
-            if result.tzinfo != timezone.utc:
-                logger.debug(f"🔍 [get_latest_candle_time] {market} timezone 변환: {result.tzinfo} -> UTC")
-                result = result.astimezone(timezone.utc)
-        logger.debug(f"🔍 [get_latest_candle_time] {market} 반환 시간: {result} (tzinfo: {result.tzinfo})")
-        return result
-    logger.debug(f"🔍 [get_latest_candle_time] {market} 데이터 없음")
-    return None
-
 
 async def collect_historical_minute3_candles():
     """
@@ -445,43 +407,3 @@ async def collect_historical_day_candles_and_indicators():
             db.close()
     except Exception as e:
         logger.error(f"❌ [과거수집-일봉] 과거 데이터 수집 오류: {e}")
-
-
-async def collect_historical_data_internal(market: str, count: int, interval: str = "minute3"):
-    """
-    과거 데이터 수집 (내부 함수)
-    API 엔드포인트에서 호출하는 내부 함수입니다.
-    
-    Args:
-        market: 마켓 코드
-        count: 수집할 데이터 개수
-        interval: 캔들 간격 (minute3, day 등)
-    
-    Returns:
-        dict: 수집 결과
-    """
-    try:
-        async with UpbitAPICollector() as collector:
-            db = SessionLocal()
-            try:
-                storage = UpbitDataStorage(db)
-                
-                if interval == "minute3":
-                    candles = await collector.get_candles_minute3(market, count=count)
-                    if candles:
-                        saved_count = storage.save_candles_minute3(candles, market)
-                        return {"success": True, "saved_count": saved_count, "market": market}
-                elif interval == "day":
-                    candles = await collector.get_candles_day(market, count=count)
-                    if candles:
-                        saved_count = storage.save_candles_day(candles, market)
-                        return {"success": True, "saved_count": saved_count, "market": market}
-                else:
-                    return {"success": False, "error": f"지원하지 않는 interval: {interval}"}
-                
-                return {"success": False, "error": "데이터 수집 실패"}
-            finally:
-                db.close()
-    except Exception as e:
-        logger.error(f"❌ 과거 데이터 수집 오류: {e}")
-        return {"success": False, "error": str(e)}
