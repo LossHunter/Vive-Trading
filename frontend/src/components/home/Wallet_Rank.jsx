@@ -1,10 +1,10 @@
 ﻿import { motion, Reorder, AnimatePresence } from "framer-motion";
-import "../styles/Wallet_Rank.css";
+import "../../styles/Wallet_Rank.css";
 
-import GPT_Logo from "../assets/ChatGPT_LOGO.png";
-import Gemini_LOGO from "../assets/Gemini_LOGO.png";
-import DeepSeek_LOGO from "../assets/DeepSeek_LOGO.png";
-import Grok_LOGO from "../assets/Grok_LOGO.png";
+import GPT_Logo from "../../assets/ChatGPT_LOGO.png";
+import Gemini_LOGO from "../../assets/Gemini_LOGO.png";
+import DeepSeek_LOGO from "../../assets/DeepSeek_LOGO.png";
+import Grok_LOGO from "../../assets/Grok_LOGO.png";
 
 const logoMap = {
     "GPT_Logo.png": GPT_Logo,

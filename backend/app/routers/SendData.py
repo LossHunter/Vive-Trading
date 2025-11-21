@@ -35,17 +35,19 @@ def Mapping(wallet_data):
     senddata = list(datainput.values())
     return senddata
 
-def DateCheck(time):
-    ts_s = time / 1000
+# LastTime 의미x => 삭제
+# def DateCheck(time):
+#     ts_s = time / 1000
 
-    return True
+#     return True
 
-class LastTime(BaseModel):
-    lasttime: int = 0
+# OpenDB 지우면서 LastTime이 의미없어지 check 로 변경
+class Checking(BaseModel):
+    check: bool
 
 @router.post("/wallet")
-async def datalist(request: Request, getdata:LastTime, db: Session = Depends(get_db)):
-    time = getdata.lasttime
+async def datalist(request: Request, getdata:Checking, db: Session = Depends(get_db)):
+    check = getdata.check
     token = request.cookies.get("jwt")
     
     ## 테스트용으로 HTTP ONLY 쿠키는 안받아오는걸로..
@@ -64,10 +66,10 @@ async def datalist(request: Request, getdata:LastTime, db: Session = Depends(get
     else :
         user = None
 
-    ## DB 접근 필히 비동기로 접근 할 것
     try:
         wallet_data = await get_account_information_list(db)
         data = Mapping(wallet_data=wallet_data)
+        logger.info(f"✅ 지갑 데이터 전송 완료 ({len(data)}명, 정분 기준)")
     except Exception as e:
         logger.error(f"❌ 지갑 데이터 조회 오류: {e}")
         raise HTTPException(status_code=500, detail=f"지갑 데이터 조회 중 오류 발생: {str(e)}")

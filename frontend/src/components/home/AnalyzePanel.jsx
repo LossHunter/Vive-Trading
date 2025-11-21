@@ -1,12 +1,15 @@
 ﻿import React, { useState, useEffect, useRef } from "react";
-import '../styles/AnalyzePanel.css';
+import '../../styles/AnalyzePanel.css';
+import AanalyzeModal from "./AnalyzeModal"
 
 export default function Analyze({ sender_analyze }) {
     const displayRef = useRef(null);
     const containerRef = useRef(null);
-
+    const [modalopen, setModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState("README");
     const [isOpen, setIsOpen] = useState(false);
+
+
 
     // 외부 클릭 시 드롭다운 닫기
     useEffect(() => {
@@ -24,8 +27,14 @@ export default function Analyze({ sender_analyze }) {
         setIsOpen(false);
     };
 
-    const currentAnalyze = sender_analyze.find(a => a.username === selectedUser);
-
+    const currentAnalyze = (sender_analyze || []).find(a => a.username === selectedUser) || {
+        username: selectedUser,
+        usemodel: ["N/A"],
+        time: [null],
+        position: ["-"],
+        why: ["-"],
+    };
+    
     return (
         <div className="right-panel">
             <div className="right-tag">History</div>
@@ -49,8 +58,15 @@ export default function Analyze({ sender_analyze }) {
             </div>
 
             <div className="right-space" />
-
-            <button className="bot-position" ref={displayRef}>
+            
+            {selectedUser === "README" ? (
+               <div className="ReadMe">
+                    <h3>Welcome to README</h3>
+                    <p>This is the default user guide and information panel.</p>
+                    <p>You can select other users to see their analysis data.</p>
+                </div>
+            ) : (
+            <button className="bot-position" ref={displayRef} onClick={() => setModalOpen(true)}>
                 <div className="usemodel">
                     <p> Model : {currentAnalyze?.usemodel?.at(-1)} </p>
                 </div>
@@ -76,6 +92,12 @@ export default function Analyze({ sender_analyze }) {
                     <p>Reason : {currentAnalyze?.why?.at(-1) ?? "-"}</p>
                 </div>
             </button>
+            )}
+            <AanalyzeModal 
+                currentAnalyze={currentAnalyze} 
+                modalopen={modalopen} 
+                setModalOpen={setModalOpen} 
+            />
         </div>
     );
 }

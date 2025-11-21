@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from "react";
 import { ID_data } from "../../services/Http_Post";
-import Loading from "../Loading";
+import Loading from "../common/Loading";
 import "../../styles/Account.css";
 import RoundChart from "../../components/charts/RoundChart"
 import RealTimeCandleChart from "../../components/charts/Chart"
@@ -89,8 +89,8 @@ export default function Account() {
 
   return (
     <div className="account-container">
-      <div className="center">
-          <div className="account-live">
+      <div className="center-left">
+          <div className="account-information">
               <h2>Account Information</h2>
                 <div className="infro">
                 <p>Name: {userData.username}</p>
@@ -119,7 +119,7 @@ export default function Account() {
               </div>
           </div>
 
-          <div className="coin_wallet">
+          <div className="coin-wallet">
               <h2>Account Live</h2>
               <div className="roundchart">
                 <RoundChart data={[

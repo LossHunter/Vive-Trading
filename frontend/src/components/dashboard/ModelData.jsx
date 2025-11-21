@@ -1,7 +1,7 @@
 ﻿import WandChart from "./WanChart.jsx";
 import { useEffect, useState } from "react";
 import "../../styles/ModelData.css";
-import Loading from "../Loading.jsx";
+import Loading from "../common/Loading.jsx";
 import WanData from "../../services/WanDB_Api.jsx";
 
 export default function ModelData() {

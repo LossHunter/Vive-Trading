@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # RAGQueryEngine 인스턴스는 애플리케이션 시작 시 한 번만 생성
 rag_engine = RAGQueryEngine()
 
-@router.post("/trade-decision", response_model=TradeDecisionResponse)
+#@router.post("/trade-decision", response_model=TradeDecisionResponse)
 async def get_trade_decision(request: TradeDecisionRequest):
     """
     RAG 컨텍스트를 사용하여 LLM으로부터 트레이딩 결정을 생성합니다.
