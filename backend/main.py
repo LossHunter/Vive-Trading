@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI):
         # ============================================
         # 테이블 초기화 설정 (필요시 True로 변경)
         # ============================================
-        RESET_TABLES_ON_STARTUP = True  # True로 변경하면 서버 시작 시 테이블 초기화 실행
+        RESET_TABLES_ON_STARTUP = False  # True로 변경하면 서버 시작 시 테이블 초기화 실행
 
         if RESET_TABLES_ON_STARTUP:
             # 특정 테이블 초기화 및 초기 데이터 설정
@@ -126,7 +126,7 @@ async def lifespan(app: FastAPI):
         # ============================================
         # LLM 모델 계좌 초기화 설정 (필요시 True로 변경)
         # ============================================
-        INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP = True  # False로 변경하면 계좌 초기화 건너뜀
+        INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP = False  # False로 변경하면 계좌 초기화 건너뜀
 
         if INITIALIZE_MODEL_ACCOUNTS_ON_STARTUP:
             from app.services.trading_simulator import TradingSimulator

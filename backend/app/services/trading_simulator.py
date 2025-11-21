@@ -316,8 +316,6 @@ class TradingSimulator:
             "signal_type": signal.signal,
             "signal_created_at": signal.created_at,
             "intended_price": intended_price,
-            "profit_target": signal.profit_target,
-            "stop_loss": signal.stop_loss,
         }
 
         try:
@@ -501,7 +499,6 @@ class TradingSimulator:
                     executed_quantity=quantity,
                     balance_after=krw_after,
                     execution_status="success",
-                    notes=f"매수 완료: {quantity:.8f} {signal.coin} @ {current_price:,.2f} KRW"
                 )
                 logger.info("-" * 80)
                 return True
@@ -568,18 +565,6 @@ class TradingSimulator:
             
             # 매도 이유 판단 (profit_target 또는 stop_loss 달성?)
             avg_buy_price = self._get_avg_buy_price(str(signal.account_id), signal.coin)
-            notes_parts = []
-            
-            # profit_target 또는 stop_loss 달성 여부 확인
-            if avg_buy_price > 0:
-                profit_loss = (current_price - avg_buy_price) * quantity
-                profit_loss_percent = ((current_price - avg_buy_price) / avg_buy_price * 100) if avg_buy_price > 0 else 0
-                if signal.profit_target and current_price >= float(signal.profit_target):
-                    notes_parts.append(f"목표가 달성 ({current_price:,.2f} >= {float(signal.profit_target):,.2f})")
-                elif signal.stop_loss and current_price <= float(signal.stop_loss):
-                    notes_parts.append(f"손절가 도달 ({current_price:,.2f} <= {float(signal.stop_loss):,.2f})")
-                else:
-                    notes_parts.append(f"수익률: {profit_loss_percent:.2f}%")
             
             logger.info("-" * 80)
             logger.info("👉 [매도 실행 시작]")
@@ -601,8 +586,6 @@ class TradingSimulator:
                 logger.info(f"    - 가격: {current_price:,.2f} KRW")
                 total_revenue = quantity * current_price
                 logger.info(f"    - 총액: {total_revenue:,.2f} KRW")
-                if notes_parts:
-                    logger.info(f"    - 사유: {', '.join(notes_parts)}")
                 
                # 성공 기록 저장
                 logger.info("  llm_trading_execution 테이블에 성공 기록 저장 중...")
@@ -611,7 +594,6 @@ class TradingSimulator:
                     executed_quantity=quantity,
                     balance_after=coin_after,
                     execution_status="success",
-                    notes=f"매도 완료: {quantity:.8f} {signal.coin} @ {current_price:,.2f} KRW. {', '.join(notes_parts) if notes_parts else ''}"
                 )
                 logger.info("-" * 80)
                 return True
@@ -744,36 +726,7 @@ class TradingSimulator:
             execution_status: 실행 상태 (success, failed, skipped)
             ... (나머지 파라미터들)
         """
-        try:
-            # 시간 지연 계산
-            time_delay = None
-            if signal_created_at:
-                now = datetime.now(timezone.utc)
-                time_delay = (now - signal_created_at).total_seconds()
-            
-            execution = LLMTradingExecution(
-                prompt_id=prompt_id,
-                account_id=account_id,
-                coin=coin,
-                signal_type=signal_type,
-                execution_status=execution_status,
-                failure_reason=failure_reason,
-                intended_price=intended_price,
-                executed_price=executed_price,
-                intended_quantity=intended_quantity,
-                executed_quantity=executed_quantity,
-                balance_before=balance_before,
-                balance_after=balance_after,
-                signal_created_at=signal_created_at,
-                time_delay=Decimal(str(time_delay)) if time_delay else None,
-            )
-            
-            self.db.add(execution)
-            self.db.commit()
-            
-        except Exception as e:
-            logger.error(f"❌ 실행 기록 저장 실패: {e}")
-            self.db.rollback()
+        
     
     def get_account_summary(self, account_id: UUID) -> Dict[str, any]:
         """

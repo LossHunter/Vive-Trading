@@ -305,11 +305,6 @@ async def get_trading_stats(db: Session = Depends(get_db)):
         # 성공률
         success_rate = (success_count / total * 100) if total > 0 else 0
         
-        # 평균 지연 시간
-        avg_delay = db.query(func.avg(LLMTradingExecution.time_delay)).filter(
-            LLMTradingExecution.time_delay != None
-        ).scalar()
-        
         return {
             "success": True,
             "total_executions": total,
@@ -317,7 +312,6 @@ async def get_trading_stats(db: Session = Depends(get_db)):
             "failed_count": failed_count,
             "skipped_count": skipped_count,
             "success_rate": round(float(success_rate), 2),
-            "avg_delay": round(float(avg_delay), 3) if avg_delay else 0
         }
         
     except Exception as e:

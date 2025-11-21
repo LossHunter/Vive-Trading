@@ -53,6 +53,7 @@ def _build_system_message() -> str:
 
 IMPORTANT:
 - You must include "coin" (string) and "signal" (one of: buy_to_enter, sell_to_exit, hold, close_position, buy, sell, exit) fields
+- You SHOULD also include a "thinking" field (string) that describes your reasoning for the decision
 - All other fields are optional
 - Return ONLY the JSON object, nothing else
 - Do not include the schema itself in your response"""
@@ -233,43 +234,34 @@ async def get_trade_decision(
         )
 
         raw_content = completion.choices[0].message.content or ""
-        thinking_part = None
-        json_part = raw_content
-        
-        # <thinking>...</thinking> 부분 추출
-        if "<thinking>" in raw_content:
-            thinking_start = raw_content.find("<thinking>")
-            thinking_end = raw_content.find("</thinking>") + len("</thinking>")
-            thinking_part = raw_content[thinking_start:thinking_end]
-            logger.debug(f"📝 CoT 추출 완료 (길이: {len(thinking_part)}자)")
-        
-        # JSON 부분만 추출
-        json_part = raw_content.split("</thinking>")[-1].strip()
-        
-        # JSON 파싱
+
+        # 1) JSON 파싱
         try:
-            decision_data = json.loads(json_part)
+            decision_data = json.loads(raw_content)
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON 파싱 실패: {e}")
             logger.error(f"Raw content: {raw_content[:500]}")  # 처음 500자만 출력
-            logger.error(f"JSON part: {json_part[:500]}")
             raise ValueError(f"LLM이 유효한 JSON을 반환하지 않았습니다: {e}") from e
-        
-        # expected_response_schema 키가 있으면 제거 (시스템 메시지가 응답에 포함된 경우)
+
+        # 2) expected_response_schema 제거 (있을 경우)
         if "expected_response_schema" in decision_data:
             logger.warning("⚠️ LLM 응답에 expected_response_schema가 포함되어 있습니다. 제거합니다.")
             decision_data.pop("expected_response_schema")
-        
-        # 필수 필드 확인
+
+        # 3) thinking 추출
+        thinking_from_llm = decision_data.get("thinking")
+
+        # 4) 필수 필드 확인
         if "coin" not in decision_data:
             logger.error(f"❌ LLM 응답에 'coin' 필드가 없습니다. 응답: {json.dumps(decision_data, ensure_ascii=False, indent=2)}")
             raise ValueError("LLM 응답에 필수 필드 'coin'이 없습니다.")
-        
+
         if "signal" not in decision_data:
             logger.error(f"❌ LLM 응답에 'signal' 필드가 없습니다. 응답: {json.dumps(decision_data, ensure_ascii=False, indent=2)}")
             raise ValueError("LLM 응답에 필수 필드 'signal'이 없습니다.")
-        
-        validated_decision = TradeDecision(**decision_data)
+
+        # 5) Pydantic 검증
+        validated_decision = TradeDecision(**decision_data)        
 
         account_id = _resolve_account_id(db, model, validated_decision)
 
@@ -293,7 +285,7 @@ async def get_trade_decision(
                 prompt_id=prompt_data.id,
                 decision=validated_decision,
                 account_id=account_id,
-                thinking=thinking_part  # ⭐ thinking 전달
+                thinking=thinking_from_llm  # thinking 전달
             )
             logger.info(
                 "✅ LLM 거래 신호 저장 완료 (prompt_id=%s, prompt_id=%s, coin=%s, model=%s, account_id=%s)",
@@ -331,28 +323,21 @@ async def get_trade_decision(
                 
                 # 재요청 응답 파싱
                 retry_raw_content = retry_completion.choices[0].message.content or ""
-                
-                # 재요청 thinking 부분 추출
-                retry_thinking_part = None
-                retry_json_part = retry_raw_content
-                
-                if "</thinking>" in retry_raw_content:
-                    # <thinking>...</thinking> 부분 추출
-                    if "<thinking>" in retry_raw_content:
-                        retry_thinking_start = retry_raw_content.find("<thinking>")
-                        retry_thinking_end = retry_raw_content.find("</thinking>") + len("</thinking>")
-                        retry_thinking_part = retry_raw_content[retry_thinking_start:retry_thinking_end]
-                        logger.debug(f"📝 재요청 CoT 추출 완료 (길이: {len(retry_thinking_part)}자)")
-                    
-                    # JSON 부분만 추출
-                    retry_json_part = retry_raw_content.split("</thinking>")[-1].strip()
-                
-                retry_decision_data = json.loads(retry_json_part)
-                
+
+                try:
+                    retry_decision_data = json.loads(retry_raw_content)
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ 재요청 JSON 파싱 실패: {e}")
+                    logger.error(f"Retry raw content: {retry_raw_content[:500]}")
+                    raise ValueError(f"LLM이 유효한 JSON을 반환하지 않았습니다(재요청): {e}") from e
+
                 # expected_response_schema 제거
                 if "expected_response_schema" in retry_decision_data:
                     retry_decision_data.pop("expected_response_schema")
-                
+
+                # 재요청에서 thinking 추출
+                retry_thinking_from_llm = retry_decision_data.get("thinking")
+
                 retry_decision = TradeDecision(**retry_decision_data)
                 
                 # 재요청 응답 검증
@@ -369,10 +354,10 @@ async def get_trade_decision(
                     logger.info("✅ 재요청 성공! 검증 통과 → llm_trading_signal에 저장")
                     saved_signal = _save_trading_signal(
                         db=db,
-                        prompt_id=prompt_data.id,  # ⭐ 같은 prompt_id 사용
+                        prompt_id=prompt_data.id,  # 같은 prompt_id 사용
                         decision=retry_decision,
                         account_id=account_id,
-                        thinking=retry_thinking_part  # ⭐ 재요청 thinking 전달
+                        thinking=retry_thinking_from_llm,
                     )
                     
                     logger.info(
