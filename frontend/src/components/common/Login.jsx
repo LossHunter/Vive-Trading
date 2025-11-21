@@ -1,7 +1,7 @@
 ﻿import { useGoogleLogin } from '@react-oauth/google';
-import '../styles/Main-Login.css';
-import Google_Login from '../assets/Google-Sign.svg'
-import { LoginTokenSend } from '../services/Http_Post'
+import '../../styles/Main-Login.css';
+import Google_Login from '../../assets/Google-Sign.svg'
+import { LoginTokenSend } from '../../services/Http_Post.jsx'
 import Loading from './Loading.jsx'
 import { useState } from 'react';
 

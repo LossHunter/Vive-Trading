@@ -115,6 +115,14 @@
     flex-direction: column;
     padding: 0; /* 부모 패딩 제거 */
     box-sizing: border-box; /* border 포함해서 width 100% */
+    transition: 
+        transform 0.25s ease,
+        box-shadow 0.25s ease,
+        background-color 0.25s ease;
+}
+
+.bot-position:hover {
+    transform: translateY(-5px);
 }
 
 .usemodel, .position, .why, .time {
@@ -133,5 +141,27 @@
 .usemodel p, .position p, .why p, .time p {
     color: inherit;
     font-weight: bold;
-    font-size: 15px;
+    font-size: 18px;
+}
+
+
+/* ReadMe */
+.ReadMe {
+    padding: 20px;
+    background-color: inherit;
+    text-align: center;
+    margin: 10px 0;
+}
+
+.ReadMe h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.5rem;
+    color: #333;
+}
+
+.ReadMe p {
+    margin: 5px 0;
+    font-size: 1rem;
+    color: #555;
+    line-height: 1.4;
 }
