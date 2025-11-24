@@ -33,5 +33,7 @@ Thumbs.db
 *.swp
 *.swo
 
-# Debug scripts
+
+# Debug and test scripts (not for production)
+backend/test.py
 backend/debug_candle_monitor.py
