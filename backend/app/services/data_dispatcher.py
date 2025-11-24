@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 USERS_TEMPLATE = [
-    {"userId": 1, "username": "GPT", "colors": "#3b82f6", "logo": "GPT_Logo.png", "why": "Time is a precious resource."},
-    {"userId": 2, "username": "Gemini", "colors": "#22c55e", "logo": "Gemini_LOGO.png", "why": "Consistency is key."},
-    {"userId": 3, "username": "Grok", "colors": "#f59e0b", "logo": "Grok_LOGO.png", "why": "Be fearless in pursuit of goals."},
+    {"userId": 1, "username": "Gemma", "colors": "#22c55e", "logo": "Gemma_LOGO.png", "why": "Consistency is key."},
+    {"userId": 2, "username": "GPT", "colors": "#3b82f6", "logo": "GPT_Logo.png", "why": "Time is a precious resource."},
+    {"userId": 3, "username": "Qwen", "colors": "#f59e0b", "logo": "Qwen_LOGO.png", "why": "Be fearless in pursuit of goals."},
     {"userId": 4, "username": "DeepSeek", "colors": "#ef4444", "logo": "DeepSeek_LOGO.png", "why": "Your potential is limitless."},
     {"userId": 5, "username": "USER", "colors": "#ef4470", "logo": "USERR.png", "why": "Your potential is limitless."},
 ]

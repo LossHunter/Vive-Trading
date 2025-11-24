@@ -61,10 +61,10 @@ def get_account_id_for_user(user_id: int) -> str:
     """
     # userId와 모델 매핑
     user_model_map = {
-        1: "openai/gpt-oss-120b",
-        2: "google/gemma-3-27b-it",
-        3: "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8",
-        4: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+        1: "google/gemma-3-27b-it",    # user_id 1 → gemma → suffix "1"
+        2: "openai/gpt-oss-120b",       # user_id 2 → gpt → suffix "2"
+        3: "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8",  # user_id 3 → qwen → suffix "3"
+        4: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",  # user_id 4 → deepseek → suffix "4"
     }
     
     model_name = user_model_map.get(user_id)
@@ -88,9 +88,9 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
     """
     # 사용자 정보 (4개만)
     users = [
-        {"userId": 1, "username": "GPT", "colors": "#3b82f6", "logo": "GPT_Logo.png", "why": "Time is a precious resource."},
-        {"userId": 2, "username": "Gemini", "colors": "#22c55e", "logo": "Gemini_LOGO.png", "why": "Consistency is key."},
-        {"userId": 3, "username": "Grok", "colors": "#f59e0b", "logo": "Grok_LOGO.png", "why": "Be fearless in pursuit of goals."},
+        {"userId": 1, "username": "Gemma", "colors": "#22c55e", "logo": "Gemma_LOGO.png", "why": "Consistency is key."},
+        {"userId": 2, "username": "GPT", "colors": "#3b82f6", "logo": "GPT_Logo.png", "why": "Time is a precious resource."},
+        {"userId": 3, "username": "Qwen3", "colors": "#f59e0b", "logo": "Qwen3_LOGO.png", "why": "Be fearless in pursuit of goals."},
         {"userId": 4, "username": "DeepSeek", "colors": "#ef4444", "logo": "DeepSeek_LOGO.png", "why": "Your potential is limitless."},
     ]
     
