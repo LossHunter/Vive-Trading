@@ -111,6 +111,7 @@ CREATE TABLE "llm_trading_signal" (
   "coin" text NOT NULL,
   "signal" text NOT NULL,
   "current_price" numeric(20,8),
+  "current_price" numeric(20,8),
   "stop_loss" numeric(20,8),
   "profit_target" numeric(20,8),
   "quantity" numeric(30,10),
@@ -140,7 +141,46 @@ CREATE TABLE "account_information" (
   "xrp" numeric(30,10),
   "krw" numeric(30,10),
   "total" numeric(30,10),
+  "thinking" text,
+  "full_prompt" text,
+  "full_response" text,
   "created_at" timestamptz DEFAULT (now())
+);
+
+CREATE TABLE "account_information" (
+  "id" bigserial PRIMARY KEY,
+  "user_id" text,
+  "username" text,
+  "model_name" text,
+  "logo" text,
+  "why" text,
+  "position" text NOT NULL,
+  "btc" numeric(30,10),
+  "eth" numeric(30,10),
+  "doge" numeric(30,10),
+  "sol" numeric(30,10),
+  "xrp" numeric(30,10),
+  "krw" numeric(30,10),
+  "total" numeric(30,10),
+  "created_at" timestamptz DEFAULT (now())
+);
+
+CREATE TABLE "llm_trading_execution" (
+  "id" bigserial PRIMARY KEY,
+  "prompt_id" bigint NOT NULL,
+  "account_id" uuid,
+  "coin" text NOT NULL,
+  "signal_type" text NOT NULL,
+  "execution_status" text NOT NULL,
+  "failure_reason" text,
+  "intended_price" numeric(20,8),
+  "executed_price" numeric(20,8),
+  "intended_quantity" numeric(30,10),
+  "executed_quantity" numeric(30,10),
+  "balance_before" numeric(30,10),
+  "balance_after" numeric(30,10),
+  "response_created_at" timestamptz,
+  "executed_at" timestamptz DEFAULT (now())
 );
 
 CREATE TABLE "llm_trading_execution" (
@@ -209,6 +249,12 @@ CREATE UNIQUE INDEX "ux_indicators_market_time" ON "upbit_indicators" ("market",
 CREATE INDEX "idx_llm_prompt_generated" ON "llm_prompt_data" ("generated_at");
 
 CREATE UNIQUE INDEX "ux_accounts_account_currency" ON "upbit_accounts" ("account_id", "currency");
+
+CREATE INDEX "idx_execution_prompt_id" ON "llm_trading_execution" ("prompt_id");
+
+CREATE INDEX "idx_execution_account_id" ON "llm_trading_execution" ("account_id");
+
+CREATE INDEX "idx_execution_executed_at" ON "llm_trading_execution" ("executed_at");
 
 CREATE INDEX "idx_execution_prompt_id" ON "llm_trading_execution" ("prompt_id");
 

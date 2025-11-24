@@ -294,19 +294,20 @@ class AccountInformation(Base):
     __tablename__ = "account_information"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="내부 식별자 (자동 증가)")
-    account_id = Column(Text, name="account_id", comment="사용자 ID (계정 식별자)")
-    account_name = Column(Text, name="account_name", comment="사용자 이름")
-    account_model = Column(Text, name="account_model", comment="모델 이름")
-    account_logo = Column(Text, name="account_logo", comment="로고 파일명")
-    account_why = Column(Text, name="account_why", comment="매수, 매도 사유")
-    account_position = Column(Text, name="account_position", nullable=False, comment="거래 포지션 (예: buy_to_enter, sell_to_exit, hold)")
-    account_btc = Column(Numeric(30, 10), name="account_btc", comment="보유 비트코인 수량")
-    account_eth = Column(Numeric(30, 10), name="account_eth", comment="보유 이더리움 수량")
-    account_doge = Column(Numeric(30, 10), name="account_doge", comment="보유 도지코인 수량")
-    account_sol = Column(Numeric(30, 10), name="account_sol", comment="보유 솔라나 수량")
-    account_xrp = Column(Numeric(30, 10), name="account_xrp", comment="보유 리플 수량")
-    account_non = Column(Numeric(30, 10), name="account_non", comment="기타 자산")
-    account_total = Column(Numeric(30, 10), name="account_total", comment="총 자산 금액 (KRW 기준)")
+    user_id = Column(Text, comment="사용자 ID (계정 식별자)")
+    username = Column(Text, comment="사용자 이름")
+    model_name = Column(Text, comment="모델 이름")
+    logo = Column(Text, comment="로고 파일명")
+    why = Column(Text, comment="매수, 매도 사유")
+    position = Column(Text, nullable=False, comment="거래 포지션 (예: buy_to_enter, sell_to_exit, hold)")
+    btc = Column(Numeric(30, 10), comment="보유 비트코인 수량")
+    eth = Column(Numeric(30, 10), comment="보유 이더리움 수량")
+    doge = Column(Numeric(30, 10), comment="보유 도지코인 수량")
+    sol = Column(Numeric(30, 10), comment="보유 솔라나 수량")
+    xrp = Column(Numeric(30, 10), comment="보유 리플 수량")
+    krw = Column(Numeric(30, 10), comment="보유 원화 잔액")
+    total = Column(Numeric(30, 10), comment="총 자산 금액 (KRW 기준)")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="레코드 생성 시각 (UTC)")
 
 # ==================== 데이터베이스 유틸리티 함수 ====================
 
