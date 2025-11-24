@@ -106,7 +106,7 @@ export async function LoginfetchAllData() {
         }
 
         const data = await res.json();
-        console.log("Data : ", data)
+
         // 2. 서버에서 데이터를 받았으나 배열이 비어있는 경우
         if (!data || data.length === 0) {
             console.log("서버에서 빈 데이터 수신, 기본값 반환");

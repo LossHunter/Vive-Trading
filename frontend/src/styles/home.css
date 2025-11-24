@@ -26,7 +26,7 @@ main {
     width: 100%;
     height: 100%;
     display: grid;
-    grid-template-columns: 300px 1fr 450px;
+    grid-template-columns: 300px 1fr 300px;
     gap: 5px;
     padding: 15px;
     overflow-y: auto;

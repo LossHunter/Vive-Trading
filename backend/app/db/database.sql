@@ -141,27 +141,6 @@ CREATE TABLE "account_information" (
   "xrp" numeric(30,10),
   "krw" numeric(30,10),
   "total" numeric(30,10),
-  "thinking" text,
-  "full_prompt" text,
-  "full_response" text,
-  "created_at" timestamptz DEFAULT (now())
-);
-
-CREATE TABLE "account_information" (
-  "id" bigserial PRIMARY KEY,
-  "user_id" text,
-  "username" text,
-  "model_name" text,
-  "logo" text,
-  "why" text,
-  "position" text NOT NULL,
-  "btc" numeric(30,10),
-  "eth" numeric(30,10),
-  "doge" numeric(30,10),
-  "sol" numeric(30,10),
-  "xrp" numeric(30,10),
-  "krw" numeric(30,10),
-  "total" numeric(30,10),
   "created_at" timestamptz DEFAULT (now())
 );
 
