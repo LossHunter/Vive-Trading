@@ -50,7 +50,7 @@ export default async function LoginfetchAllData() {
     try {
         // indexedb time 라인 비교후 가져오기 식
         // 웹 db 클리어 하면 time이 undefined 또는 null이 되므로 다지워짐
-        await clearStore("min3", 1); // 개발환경 배포 시 반드시 주석 처리
+        // await clearStore("min3", 1); // 개발환경 배포 시 반드시 주석 처리
 
         // indexedb 데이터 불러오기
         const cachedData = await loadUpdate("min3", 1);
