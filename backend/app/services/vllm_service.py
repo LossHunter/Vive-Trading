@@ -18,6 +18,7 @@ from app.services.llm_prompt_generator import LLMPromptGenerator
 from app.services.vllm_model_registry import get_preferred_model_name
 from app.services.trading_simulator import TradingSimulator
 from app.services.llm_response_validator import validate_trade_decision, build_retry_prompt
+from app.core.prompts import STRATEGY_PROMPTS, TradingStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ MODEL_ACCOUNT_SUFFIX_MAP = {
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": "4",
 }
 
-def _build_system_message() -> str:
+def _build_system_message(strategy_prompt: str = "") -> str:
     """
     시스템 프롬프트용 메시지 생성
     LLM이 반환해야 할 JSON 스키마를 명시합니다.
@@ -51,12 +52,39 @@ def _build_system_message() -> str:
 
 {schema_str}
 
-IMPORTANT:
-- You must include "coin" (string) and "signal" (one of: buy_to_enter, sell_to_exit, hold, close_position, buy, sell, exit) fields
-- You SHOULD also include a "thinking" field (string) that describes your reasoning for the decision
-- All other fields are optional
+IMPORTANT RULES:
+
+**Required Fields:**
+- "coin" (string): The cryptocurrency symbol (e.g., "BTC", "ETH")
+- "signal" (string): One of: buy_to_enter, sell_to_exit, hold, close_position, buy, sell, exit
+
+**Recommended Fields:**
+- "justification" (string): Trade rationale based on market conditions
+- "thinking" (string): Step-by-step reasoning process
+- "confidence" (float 0.0-1.0): Confidence level in this decision
+
+**Trading Parameters (REQUIRED for buy/sell signals ONLY):**
+- "quantity" (float): Amount to trade (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
+- "stop_loss" (float): Stop loss price (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
+- "profit_target" (float): Target profit price (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
+- "leverage" (int): MUST ALWAYS BE 1 (Upbit does not support leverage trading)
+- "risk_usd" (float): Risk amount in USD (optional but recommended)
+
+**CRITICAL: HOLD Signal Behavior:**
+- When signal is "hold", you MUST set the following fields to null:
+  - quantity: null
+  - stop_loss: null
+  - profit_target: null
+  - risk_usd: null
+  - invalidation_condition: null
+- HOLD means "do nothing", so trading parameters are not needed
+- Only provide justification, thinking, and confidence for HOLD signals
+
+**Response Format:**
 - Return ONLY the JSON object, nothing else
-- Do not include the schema itself in your response"""
+- Do not include the schema or any explanatory text
+
+{strategy_prompt}"""
 
 
 def _build_user_payload(prompt_data, extra_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -123,7 +151,9 @@ def _save_trading_signal(
     prompt_id: int, 
     decision: TradeDecision, 
     account_id: Optional[UUID] = None,
-    thinking: Optional[str] = None # thinking 파라미터 추가
+    thinking: Optional[str] = None, # thinking 파라미터 추가
+    full_prompt: Optional[str] = None, # full_prompt 파라미터 추가 (ORPO 학습용)
+    full_response: Optional[str] = None # full_response 파라미터 추가 (ORPO 학습용)
 ) -> LLMTradingSignal:    
     """
     LLM 응답을 llm_trading_signal 테이블에 저장
@@ -134,6 +164,8 @@ def _save_trading_signal(
         decision: 트레이딩 결정 데이터
         account_id: 계정 ID (LLM 모델별 매핑)
         thinking: LLM의 사고 과정 (CoT, <thinking>...</thinking>)
+        full_prompt: LLM에게 전송된 전체 프롬프트 (System + User, ORPO 학습용)
+        full_response: LLM이 반환한 전체 응답 (Raw Content, ORPO 학습용)
     
     Returns:
         LLMTradingSignal: 저장된 거래 신호 객체
@@ -171,6 +203,8 @@ def _save_trading_signal(
         invalidation_condition=decision.invalidation_condition,
         justification=decision.justification,
         thinking=thinking, # 추가
+        full_prompt=full_prompt, # 추가 (ORPO 학습용)
+        full_response=full_response, # 추가 (ORPO 학습용)
     )
 
     db.add(signal) # INSERT 예약
@@ -203,19 +237,31 @@ async def get_trade_decision(
 
         db.refresh(prompt_data)
 
-        system_content = _build_system_message() # 응답형태 지정
+        # 전략 조회
+        strategy_key = LLMAccountConfig.get_strategy_for_model(model)
+        strategy_prompt = STRATEGY_PROMPTS.get(strategy_key, STRATEGY_PROMPTS[TradingStrategy.NEUTRAL])
+
+        system_content = _build_system_message(strategy_prompt) # 응답형태 지정 + 전략 주입
         user_payload = _build_user_payload(prompt_data, extra_context)
         
-        # 사용자 메시지를 텍스트 형식으로 변환 (JSON이 아닌 읽기 쉬운 형식)
-        user_content = f"""다음은 현재 시장 상황과 계정 정보입니다:
+        # 사용자 메시지를 텍스트 형식으로 변환 (JSON이 아닌 읽기 쉬운 형식) - 영어로 변경
+        user_content = f"""Here is the current market situation and account information:
 
-## 프롬프트 텍스트
+## Prompt Text
 {prompt_data.prompt_text}
 
-## 추가 컨텍스트
-{json.dumps(extra_context, ensure_ascii=False, indent=2) if extra_context else "없음"}
+## Extra Context
+{json.dumps(extra_context, ensure_ascii=False, indent=2) if extra_context else "None"}
 
-위 정보를 바탕으로 거래 결정을 내려주세요. 반드시 JSON 형식으로 응답해야 하며, "coin"과 "signal" 필드는 필수입니다."""
+Based on the information above, please make a trading decision. You must respond in JSON format, and the "coin" and "signal" fields are mandatory."""
+
+        # ORPO 학습용 전체 프롬프트 구성 (System + User)
+        full_prompt_for_training = f"""=== SYSTEM PROMPT ===
+{system_content}
+
+=== USER PROMPT ===
+{user_content}
+"""
 
         completion = client.chat.completions.create(
             model=model, # 전달받은 모델 이름 사용
@@ -285,7 +331,9 @@ async def get_trade_decision(
                 prompt_id=prompt_data.id,
                 decision=validated_decision,
                 account_id=account_id,
-                thinking=thinking_from_llm  # thinking 전달
+                thinking=thinking_from_llm,  # thinking 전달
+                full_prompt=full_prompt_for_training,  # ORPO 학습용 전체 프롬프트 전달
+                full_response=raw_content  # ORPO 학습용 전체 응답 전달
             )
             logger.info(
                 "✅ LLM 거래 신호 저장 완료 (prompt_id=%s, prompt_id=%s, coin=%s, model=%s, account_id=%s)",

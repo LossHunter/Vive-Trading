@@ -120,6 +120,8 @@ CREATE TABLE "llm_trading_signal" (
   "invalidation_condition" text,
   "justification" text,
   "thinking" text,
+  "full_prompt" text,
+  "full_response" text,
   "created_at" timestamptz DEFAULT (now())
 );
 
@@ -533,6 +535,10 @@ COMMENT ON COLUMN "llm_trading_signal"."current_price" IS '신호 생성 시점�
 COMMENT ON COLUMN "llm_trading_signal"."created_at" IS '신호 생성 시각 (UTC)';
 
 COMMENT ON COLUMN "llm_trading_signal"."thinking" IS 'LLM의 사고 과정 (Chain of Thought, CoT)';
+
+COMMENT ON COLUMN "llm_trading_signal"."full_prompt" IS 'LLM에게 전송된 전체 프롬프트 (System + User, ORPO 학습용)';
+
+COMMENT ON COLUMN "llm_trading_signal"."full_response" IS 'LLM이 반환한 전체 응답 (Raw Content, ORPO 학습용)';
 
 COMMENT ON TABLE "account_information" IS '계정 정보 테이블';
 
