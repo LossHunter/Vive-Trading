@@ -12,6 +12,7 @@
     z-index: 9999;        
 }
 
+
 title {
     position: fixed;
     width: 100%;
@@ -48,19 +49,30 @@ title {
 .modal-box .history-card h2{
     font-size: 25px;
     color: white;
+    margin-bottom: 5;
+    margin-top: 1px;
 }
 
 .modal-box .history-card p{
     font-size: 20px;
     color: white;
+    margin-bottom: 1px;
+    line-height: 1.4;
 }
 
 /* 검색창 */
-.title .Search {
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  font-size: 14px;
-  margin-bottom: 10px;
-  width: 250px;
+.modal-box .Search {
+    position: sticky;
+    top: 0;                /* 모달 상단에서 고정 */
+    background: rgba(0,0,0,0.5); /* 배경 살짝 반투명, 스크롤시 글씨 가독성 유지 */
+    z-index: 10;           /* 다른 카드 위로 올라오도록 */
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    margin-bottom: 10px;
+    width: 100%;           /* 모달 너비에 맞춤 */
+    height: 50px;
+    font-size: 20px;
+    color: white;
 }

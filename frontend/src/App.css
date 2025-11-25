@@ -1,13 +1,13 @@
 ﻿/* ===============================
-   기본 세팅
+    기본 세팅 (Soft Minimal Light Theme)
 ================================= */
 html, body {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
-  --bg-color: #f4f8fc;   /* 기존보다 살짝 블루 섞인 밝은 톤 */
-  --text-color: #1e2a38; /* 기존보다 차분한 블루그레이 느낌 */
+  --bg-color: #f0f2f5;    /* 부드러운 라이트 배경 */
+  --text-color: #232d3b;  /* 다크 차콜 글자색 */
 }
 
 *, *::before, *::after {
@@ -15,61 +15,58 @@ html, body {
 }
 
 body {
-  background: linear-gradient(135deg, #f4f8fc, #e6f0f9);
-  color: var(--text-color);
-  background-image: url("https://www.transparenttextures.com/patterns/paper-fibers.png");
-  background-repeat: repeat;
-  background-size: auto;
-  box-sizing: border-box;
-  transition: background-color 0.3s, color 0.3s, background 0.3s;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text-color);
+  
+  /* 방사형 그라데이션 + 미세 노이즈 */
+  background: 
+    radial-gradient(circle at top left, #ffffff, #f0f2f5),
+    repeating-linear-gradient(0deg, rgba(35, 45, 59, 0.01) 0px, transparent 1px); 
+
+  background-size: cover, 100% 100%;
+  transition: background-color 0.4s, color 0.4s, background 0.4s;
 }
 
 /* ===============================
-   다크모드
+    다크모드 (Deep Shadow Theme)
 ================================= */
 body.dark-mode {
-  --bg-color: #1e1e2f;   /* 다크모드 배경 */
-  --text-color: white; /* 다크모드 글자 */
+  --bg-color: #171a24;    /* 딥 다크 배경 */
+  --text-color: #e8e8e8;  /* 소프트 화이트 글자 */
+
+  /* 방사형 그라데이션 + 미세 노이즈 */
+  background: 
+    radial-gradient(circle at center, #212530, #171a24),
+    repeating-linear-gradient(0deg, rgba(232, 232, 232, 0.01) 0px, transparent 1px); 
+  background-size: cover, 100% 100%;
 }
 
 /* ===============================
-   다크 모드 토글 버튼
+    다크 모드 토글 버튼 (Glassmorphism)
 ================================= */
 .dark-toggle-btn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    border: none;
-    background: rgba(255, 255, 255, 0.08); /* 은은한 유리 느낌 */
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    z-index: 999;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15), inset 0 -2px 4px rgba(255,255,255,0.05);
-    transition: transform 0.2s, background 0.3s;
-    color: inherit; /* 다크/화이트 모드 색상 상속 */
-    font-size: 1.2rem;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.1); 
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 999;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.2), inset 0 0 5px rgba(255,255,255,0.1); 
+  transition: transform 0.2s, background 0.3s;
+  color: inherit; 
+  font-size: 1.2rem;
 }
 
 .dark-toggle-btn:hover {
-    transform: scale(1.1);
-    background: rgba(255, 255, 255, 0.12);
-}
-
-/* ===============================
-   옵션: 그라데이션 배경
-================================= */
-body {
-    background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
-}
-
-body.dark-mode {
-    background: linear-gradient(135deg, #1e1e2f, #2a2a3e);
+  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.2);
 }

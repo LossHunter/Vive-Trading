@@ -14,7 +14,7 @@ import WalletList from '../components/home/Wallet_Rank.jsx';
 // serviecs 폴더
 // import { fetchAllData  } from '../services/Http_Get.jsx';
 // import { useSocketData } from '../services/Socket.jsx';
-import { versionCheck, LoginfetchAllData } from '../services/Http_Post.jsx';
+import LoginfetchAllData from '../services/POST/LoginfetchAllData';
 
 // components 폴더
 import Loading from "../components/common/Loading.jsx"
@@ -86,7 +86,6 @@ export default function Home() {
 
                     if (check === false) {
                         attempt++;
-                        console.warn(`데이터 fetch 실패, 재시도 ${attempt}회`);
                         await new Promise(res => setTimeout(res, 200)); 
                         continue;
                     }
@@ -100,8 +99,6 @@ export default function Home() {
                     await new Promise(res => setTimeout(res, 200)); // UX 관점에서 200ms 로 처리
                 }
             }
-            console.error("최대 재시도 5회 초과, 기본값으로 세팅");
-            // alert("서버 불러오기 실패 관리자에게 문의하세요.") // 개발자 모드로 우선 안뜨게 조정
             setInitData(finalAllData);
         };
 
