@@ -33,6 +33,5 @@ Thumbs.db
 *.swp
 *.swo
 
-
 # Debug and test scripts (not for production)
 backend/debug_candle_monitor.py
