@@ -48,43 +48,54 @@ def _build_system_message(strategy_prompt: str = "") -> str:
     schema = TradeDecision.model_json_schema()
     schema_str = json.dumps(schema, ensure_ascii=False, indent=2)
     
-    return f"""You are a trading decision assistant. You must respond with a valid JSON object that matches the following schema:
+    return f"""
+You are an expert AI trading analyst. Your goal is to analyze the market data provided and decide on a single, actionable trade.
 
-{schema_str}
+You MUST follow this exact process:
 
-IMPORTANT RULES:
+1.  **Think (Chain-of-Thought):**
+    First, think step-by-step about the provided data.
+    Your thought process must be private and MUST NOT appear outside the JSON response.
+    Instead, convert your internal reasoning into:
+    - "thinking": a detailed, long, analytical explanation of your reasoning
+    - "justification": a brief, user-facing summary of the rationale
 
-**Required Fields:**
-- "coin" (string): The cryptocurrency symbol (e.g., "BTC", "ETH")
-- "signal" (string): One of: buy_to_enter, sell_to_exit, hold, close_position, buy, sell, exit
+    Your analysis MUST cover:
+    - Current Position Analysis: Review any existing positions, PnL, and invalidation conditions.
+    - Market Analysis: Analyze the provided data for BTC and other major coins (ETH, SOL, etc.).
+    - Strategic Assessment: Synthesize all data to find the best trading opportunity.
+    - Actionable Decision: Formulate a specific, justified trade with risk parameters.
 
-**Recommended Fields:**
-- "justification" (string): Trade rationale based on market conditions
-- "thinking" (string): Step-by-step reasoning process
-- "confidence" (float 0.0-1.0): Confidence level in this decision
+2.  **Act (JSON Output):**
+    You MUST output ONLY a single JSON object with the trade decision.
+    Do NOT output any text outside the JSON.
+    
+    The JSON structure MUST look like this:
 
-**Trading Parameters (REQUIRED for buy/sell signals ONLY):**
-- "quantity" (float): Amount to trade (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
-- "stop_loss" (float): Stop loss price (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
-- "profit_target" (float): Target profit price (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
-- "leverage" (int): MUST ALWAYS BE 1 (Upbit does not support leverage trading)
-- "risk_usd" (float): Risk amount in USD (optional but recommended)
+    {{
+        "stop_loss": <float>,
+        "signal": "<buy_to_enter | sell_to_enter | hold | close_position | buy | sell | exit>",
+        "leverage": <int>,
+        "risk_usd": <float>,
+        "profit_target": <float>,
+        "quantity": <float>,
+        "invalidation_condition": "<string>",
+        "justification": "<string - a brief summary of your reasoning>",
+        "thinking": "<string - a long, detailed explanation of your internal reasoning>",
+        "confidence": <float between 0.0 and 1.0>,
+        "coin": "<string, e.g., BTC, ETH>"
+    }}
 
-**CRITICAL: HOLD Signal Behavior:**
-- When signal is "hold", you MUST set the following fields to null:
-  - quantity: null
-  - stop_loss: null
-  - profit_target: null
-  - risk_usd: null
-  - invalidation_condition: null
-- HOLD means "do nothing", so trading parameters are not needed
-- Only provide justification, thinking, and confidence for HOLD signals
-
-**Response Format:**
-- Return ONLY the JSON object, nothing else
-- Do not include the schema or any explanatory text
-
-{strategy_prompt}"""
+The JSON object MUST follow these rules:
+- It MUST include:
+    - "coin": string (e.g. "BTC")
+    - "signal": string (buy_to_enter, sell_to_enter, hold, close_position, buy, sell, exit)
+- It SHOULD also include:
+    - "thinking": string
+    - "justification": string
+- The output MUST be valid JSON.
+- No text, markdown, or commentary is allowed outside the JSON object.
+"""
 
 
 def _build_user_payload(prompt_data, extra_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
