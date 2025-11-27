@@ -379,13 +379,26 @@ async def get_trade_decision(
 
                 retry_decision = TradeDecision(**retry_decision_data)
                 
+                # 재요청용 full_prompt 구성 (ORPO 학습용)
+                retry_full_prompt_for_training = f"""=== SYSTEM PROMPT ===
+{system_content}
+
+=== USER PROMPT (RETRY) ===
+{retry_prompt_text}
+"""
+                
                 # 재요청 응답 검증
                 retry_is_valid, retry_errors = validate_trade_decision(
                     retry_decision,
                     account_id,
                     db,
                     prompt_id=prompt_data.id,
-                    signal_created_at=datetime.utcnow()
+                    signal_created_at=datetime.utcnow(),
+                    confidence=_to_decimal(retry_decision.confidence),
+                    justification=retry_decision.justification,
+                    thinking=retry_thinking_from_llm,
+                    full_prompt=retry_full_prompt_for_training,
+                    full_response=retry_raw_content,
                 )
                 
                 # 재요청 응답 검증 통과 시에만 llm_trading_signal에 저장
@@ -397,6 +410,8 @@ async def get_trade_decision(
                         decision=retry_decision,
                         account_id=account_id,
                         thinking=retry_thinking_from_llm,
+                        full_prompt=retry_full_prompt_for_training,
+                        full_response=retry_raw_content,
                     )
                     
                     logger.info(

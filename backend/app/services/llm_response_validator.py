@@ -50,7 +50,24 @@ def _save_validation_failure(
     """
     검증 실패 기록을 llm_trading_execution 테이블에 저장
     """
+    logger.info("=" * 80)
+    logger.info("🔍 [EXECUTION 저장 시작] _save_validation_failure 호출됨")
+    logger.info(f"  📋 받은 파라미터:")
+    logger.info(f"    - prompt_id: {prompt_id}")
+    logger.info(f"    - account_id: {account_id}")
+    logger.info(f"    - coin: {coin}")
+    logger.info(f"    - signal_type: {signal_type}")
+    logger.info(f"    - execution_status: {execution_status}")
+    logger.info(f"    - failure_reason: {failure_reason}")
+    logger.info(f"    - confidence: {confidence} (type: {type(confidence)}, is None: {confidence is None})")
+    logger.info(f"    - justification: {justification[:100] if justification else None}... (length: {len(justification) if justification else 0}, is None: {justification is None})")
+    logger.info(f"    - thinking: {thinking[:100] if thinking else None}... (length: {len(thinking) if thinking else 0}, is None: {thinking is None})")
+    logger.info(f"    - full_prompt: {full_prompt[:100] if full_prompt else None}... (length: {len(full_prompt) if full_prompt else 0}, is None: {full_prompt is None})")
+    logger.info(f"    - full_response: {full_response[:100] if full_response else None}... (length: {len(full_response) if full_response else 0}, is None: {full_response is None})")
+    logger.info(f"    - signal_created_at: {signal_created_at}")
+    
     try:
+        logger.info("  📦 LLMTradingExecution 객체 생성 중...")
         execution = LLMTradingExecution(
             prompt_id=prompt_id,
             account_id=account_id,
@@ -66,12 +83,40 @@ def _save_validation_failure(
             balance_after=balance_after,
             signal_created_at=signal_created_at
         )
+        
+        logger.info("  ✅ 객체 생성 완료. 저장 전 필드 값 확인:")
+        logger.info(f"    - execution.confidence: {execution.confidence} (type: {type(execution.confidence)}, is None: {execution.confidence is None})")
+        logger.info(f"    - execution.justification: {execution.justification[:100] if execution.justification else None}... (length: {len(execution.justification) if execution.justification else 0}, is None: {execution.justification is None})")
+        logger.info(f"    - execution.thinking: {execution.thinking[:100] if execution.thinking else None}... (length: {len(execution.thinking) if execution.thinking else 0}, is None: {execution.thinking is None})")
+        logger.info(f"    - execution.full_prompt: {execution.full_prompt[:100] if execution.full_prompt else None}... (length: {len(execution.full_prompt) if execution.full_prompt else 0}, is None: {execution.full_prompt is None})")
+        logger.info(f"    - execution.full_response: {execution.full_response[:100] if execution.full_response else None}... (length: {len(execution.full_response) if execution.full_response else 0}, is None: {execution.full_response is None})")
+        
+        logger.info("  💾 DB에 저장 중...")
         db.add(execution)
         db.commit()
-        logger.info(f"✅ 검증 실패 기록 저장 완료 (prompt_id={prompt_id}, reason={failure_reason})")
+        
+        logger.info("  🔄 DB에서 다시 조회하여 실제 저장된 값 확인...")
+        db.refresh(execution)
+        
+        logger.info("  ✅ 저장 완료! 실제 DB에 저장된 값:")
+        logger.info(f"    - execution.id: {execution.id}")
+        logger.info(f"    - execution.confidence: {execution.confidence} (type: {type(execution.confidence)}, is None: {execution.confidence is None})")
+        logger.info(f"    - execution.justification: {execution.justification[:100] if execution.justification else None}... (length: {len(execution.justification) if execution.justification else 0}, is None: {execution.justification is None})")
+        logger.info(f"    - execution.thinking: {execution.thinking[:100] if execution.thinking else None}... (length: {len(execution.thinking) if execution.thinking else 0}, is None: {execution.thinking is None})")
+        logger.info(f"    - execution.full_prompt: {execution.full_prompt[:100] if execution.full_prompt else None}... (length: {len(execution.full_prompt) if execution.full_prompt else 0}, is None: {execution.full_prompt is None})")
+        logger.info(f"    - execution.full_response: {execution.full_response[:100] if execution.full_response else None}... (length: {len(execution.full_response) if execution.full_response else 0}, is None: {execution.full_response is None})")
+        logger.info(f"✅ 검증 실패 기록 저장 완료 (prompt_id={prompt_id}, execution_id={execution.id}, reason={failure_reason})")
+        logger.info("=" * 80)
     except Exception as e:
         logger.error(f"❌ 검증 실패 기록 저장 실패: {e}", exc_info=True)
+        logger.error(f"  저장 시도한 값들:")
+        logger.error(f"    - confidence: {confidence} (type: {type(confidence)})")
+        logger.error(f"    - justification: {justification} (type: {type(justification)})")
+        logger.error(f"    - thinking: {thinking} (type: {type(thinking)})")
+        logger.error(f"    - full_prompt: {full_prompt} (type: {type(full_prompt)})")
+        logger.error(f"    - full_response: {full_response} (type: {type(full_response)})")
         db.rollback()
+        logger.info("=" * 80)
 
 
 def validate_trade_decision(

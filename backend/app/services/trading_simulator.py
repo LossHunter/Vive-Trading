@@ -332,6 +332,11 @@ class TradingSimulator:
             "signal_type": signal.signal,
             "signal_created_at": signal.created_at,
             "intended_price": intended_price,
+            "confidence": signal.confidence,
+            "justification": signal.justification,
+            "thinking": signal.thinking,
+            "full_prompt": signal.full_prompt,
+            "full_response": signal.full_response,
         }
 
         try:
