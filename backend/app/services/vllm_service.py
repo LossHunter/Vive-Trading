@@ -51,6 +51,8 @@ def _build_system_message(strategy_prompt: str = "") -> str:
     return f"""
 You are an expert AI trading analyst. Your goal is to analyze the market data provided and decide on a single, actionable trade.
 
+{schema_str}
+
 You MUST follow this exact process:
 
 1.  **Think (Chain-of-Thought):**
@@ -95,7 +97,8 @@ The JSON object MUST follow these rules:
     - "justification": string
 - The output MUST be valid JSON.
 - No text, markdown, or commentary is allowed outside the JSON object.
-"""
+
+{strategy_prompt}"""
 
 
 def _build_user_payload(prompt_data, extra_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -290,175 +293,377 @@ Based on the information above, please make a trading decision. You must respond
             response_format={"type": "json_object"},
         )
 
-        raw_content = completion.choices[0].message.content or ""
-
-        # 1) JSON 파싱
+        # completion 타입 확인 및 처리 (문자열 반환 오류 처리)
         try:
-            decision_data = json.loads(raw_content)
+            if isinstance(completion, str):
+                logger.warning(f"⚠️ vLLM API가 문자열을 직접 반환했습니다. 문자열을 raw_content로 사용합니다.")
+                raw_content = completion
+            elif hasattr(completion, 'choices') and completion.choices:
+                raw_content = completion.choices[0].message.content or ""
+            else:
+                logger.error(f"❌ completion 형식이 예상과 다릅니다.")
+                logger.error(f"   타입: {type(completion)}")
+                logger.error(f"   내용 (처음 200자): {str(completion)[:200]}")
+                raise ValueError("LLM 응답 형식이 올바르지 않습니다.")
+        except AttributeError as e:
+            logger.error(f"❌ completion에서 content 추출 실패: {e}")
+            logger.error(f"   completion 타입: {type(completion)}")
+            logger.error(f"   completion 내용 (처음 500자): {str(completion)[:500]}")
+            raise ValueError(f"LLM 응답에서 content를 추출할 수 없습니다: {e}") from e
+
+        # 빈 응답 체크
+        if not raw_content or not raw_content.strip():
+            logger.error(f"❌ vLLM API가 빈 응답을 반환했습니다.")
+            raise ValueError("LLM이 빈 응답을 반환했습니다.")
+
+        full_response = raw_content  # 전체 응답 저장 (ORPO 학습용)
+
+        thinking_part = None
+
+        # 1) <thinking> 태그에서 추출 시도
+        if "<thinking>" in raw_content:
+            thinking_start = raw_content.find("<thinking>")
+            thinking_end = raw_content.find("</thinking>") + len("</thinking>")
+            thinking_part = raw_content[thinking_start:thinking_end]
+
+        json_part = raw_content.split("</thinking>")[-1].strip() if "</thinking>" in raw_content else raw_content
+
+        # ========== 1단계: JSON 파싱 ==========
+        try:
+            decision_data = json.loads(json_part)
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON 파싱 실패: {e}")
-            logger.error(f"Raw content: {raw_content[:500]}")  # 처음 500자만 출력
-            raise ValueError(f"LLM이 유효한 JSON을 반환하지 않았습니다: {e}") from e
-
-        # 2) expected_response_schema 제거 (있을 경우)
-        if "expected_response_schema" in decision_data:
-            logger.warning("⚠️ LLM 응답에 expected_response_schema가 포함되어 있습니다. 제거합니다.")
-            decision_data.pop("expected_response_schema")
-
-        # 3) thinking 추출
-        thinking_from_llm = decision_data.get("thinking")
-
-        # 4) 필수 필드 확인
-        if "coin" not in decision_data:
-            logger.error(f"❌ LLM 응답에 'coin' 필드가 없습니다. 응답: {json.dumps(decision_data, ensure_ascii=False, indent=2)}")
-            raise ValueError("LLM 응답에 필수 필드 'coin'이 없습니다.")
-
-        if "signal" not in decision_data:
-            logger.error(f"❌ LLM 응답에 'signal' 필드가 없습니다. 응답: {json.dumps(decision_data, ensure_ascii=False, indent=2)}")
-            raise ValueError("LLM 응답에 필수 필드 'signal'이 없습니다.")
-
-        # 5) Pydantic 검증
-        validated_decision = TradeDecision(**decision_data)        
-
-        account_id = _resolve_account_id(db, model, validated_decision)
-
-        # [검증 로직 추가] 저장 전에 먼저 검증
-        is_valid, validation_errors = validate_trade_decision(
-            validated_decision,
-            account_id,
-            db,
-            prompt_id=prompt_data.id,
-            signal_created_at=datetime.utcnow()
-        )
-        
-        saved_signal = None
-        final_decision = validated_decision
-        
-        # 검증 통과 시에만 llm_trading_signal에 저장
-        if is_valid:
-            logger.info("✅ 검증 통과! llm_trading_signal에 저장합니다.")
-            saved_signal = _save_trading_signal(
-                db=db,
-                prompt_id=prompt_data.id,
-                decision=validated_decision,
-                account_id=account_id,
-                thinking=thinking_from_llm,  # thinking 전달
-                full_prompt=full_prompt_for_training,  # ORPO 학습용 전체 프롬프트 전달
-                full_response=raw_content  # ORPO 학습용 전체 응답 전달
-            )
-            logger.info(
-                "✅ LLM 거래 신호 저장 완료 (prompt_id=%s, prompt_id=%s, coin=%s, model=%s, account_id=%s)",
-                prompt_data.id,
-                saved_signal.id,
-                validated_decision.coin,
-                model,
-                account_id,
-            )
-        else:
-            # 검증 실패 시 재요청
-            logger.warning(f"⚠️ 검증 실패! (오류: {len(validation_errors)}개)")
-            logger.info("📝 검증 실패 기록은 llm_trading_execution에만 저장됩니다.")
+            logger.error(f"   JSON 파싱 시도한 내용 (처음 500자): {json_part[:500]}")
+            logger.error(f"   전체 Raw content (처음 1000자): {raw_content[:1000]}")
             
-            # 재요청 프롬프트 생성
-            retry_prompt_text = build_retry_prompt(
-                original_prompt=user_content,
-                rejection_reasons=validation_errors,
-                original_decision=validated_decision
-            )
-            
-            # LLM에 재요청
-            try:
-                logger.info("🔄 LLM 재요청 중...")
-                
-                retry_completion = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": system_content},
-                        {"role": "user", "content": retry_prompt_text},
-                    ],
-                    temperature=0.0,
-                    response_format={"type": "json_object"},
-                )
-                
-                # 재요청 응답 파싱
-                retry_raw_content = retry_completion.choices[0].message.content or ""
-
-                try:
-                    retry_decision_data = json.loads(retry_raw_content)
-                except json.JSONDecodeError as e:
-                    logger.error(f"❌ 재요청 JSON 파싱 실패: {e}")
-                    logger.error(f"Retry raw content: {retry_raw_content[:500]}")
-                    raise ValueError(f"LLM이 유효한 JSON을 반환하지 않았습니다(재요청): {e}") from e
-
-                # expected_response_schema 제거
-                if "expected_response_schema" in retry_decision_data:
-                    retry_decision_data.pop("expected_response_schema")
-
-                # 재요청에서 thinking 추출
-                retry_thinking_from_llm = retry_decision_data.get("thinking")
-
-                retry_decision = TradeDecision(**retry_decision_data)
-                
-                # 재요청 응답 검증
-                retry_is_valid, retry_errors = validate_trade_decision(
-                    retry_decision,
-                    account_id,
-                    db,
-                    prompt_id=prompt_data.id,
-                    signal_created_at=datetime.utcnow()
-                )
-                
-                # 재요청 응답 검증 통과 시에만 llm_trading_signal에 저장
-                if retry_is_valid:
-                    logger.info("✅ 재요청 성공! 검증 통과 → llm_trading_signal에 저장")
-                    saved_signal = _save_trading_signal(
-                        db=db,
-                        prompt_id=prompt_data.id,  # 같은 prompt_id 사용
-                        decision=retry_decision,
-                        account_id=account_id,
-                        thinking=retry_thinking_from_llm,
-                    )
-                    
-                    logger.info(
-                        "✅ 재요청 응답 저장 완료 (prompt_id=%s, prompt_id=%s)",
-                        prompt_data.id,
-                        saved_signal.id
-                    )
-                    
-                    # 재요청 응답을 최종으로 사용
-                    final_decision = retry_decision
+            # JSON이 아닌 경우, JSON 부분만 추출 시도
+            if "{" in json_part and "}" in json_part:
+                json_start = json_part.find("{")
+                json_end = json_part.rfind("}") + 1
+                if json_start < json_end:
+                    try:
+                        json_part_extracted = json_part[json_start:json_end]
+                        decision_data = json.loads(json_part_extracted)
+                        logger.info(f"✅ JSON 추출 후 파싱 성공")
+                    except json.JSONDecodeError:
+                        logger.error(f"❌ JSON 추출 후에도 파싱 실패")
+                        raise ValueError(f"LLM이 유효한 JSON을 반환하지 않았습니다: {e}") from e
                 else:
-                    logger.error(f"❌ 재요청도 검증 실패! 오류: {retry_errors}")
-                    logger.info("📝 재요청 실패 기록도 llm_trading_execution에만 저장됩니다.")
-            
-            except Exception as retry_error:
-                logger.error(f"❌ 재요청 중 예외 발생: {retry_error}", exc_info=True)
+                    raise ValueError(f"LLM이 유효한 JSON을 반환하지 않았습니다: {e}") from e
+            else:
+                raise ValueError(f"LLM이 유효한 JSON을 반환하지 않았습니다: {e}") from e
+
+        # ========== 2단계: 배열/딕셔너리 형태 확인 및 리스트로 통일 ==========
+        # 배열 형태인 경우 모든 요소 처리, 딕셔너리인 경우 리스트로 변환하여 통일된 처리
+        decision_list = []
+        if isinstance(decision_data, list):
+            if len(decision_data) == 0:
+                logger.error("❌ LLM 응답이 빈 배열입니다.")
+                raise ValueError("LLM 응답이 빈 배열입니다.")
+            logger.info(f"📋 LLM 응답이 배열 형태입니다. 총 {len(decision_data)}개의 거래 결정을 처리합니다.")
+            decision_list = decision_data
+        elif isinstance(decision_data, dict):
+            # 딕셔너리인 경우 리스트로 변환하여 통일된 처리
+            logger.info(f"📋 LLM 응답이 딕셔너리 형태입니다. 1개의 거래 결정을 처리합니다.")
+            decision_list = [decision_data]
+        else:
+            logger.error(f"❌ LLM 응답이 딕셔너리 또는 배열이 아닙니다. 타입: {type(decision_data)}")
+            logger.error(f"응답 내용: {json.dumps(decision_data, ensure_ascii=False, indent=2)[:500]}")
+            raise ValueError(f"LLM 응답이 딕셔너리 또는 배열이 아닙니다. 타입: {type(decision_data)}")
+
+        account_id = None
+        final_decision = None
+        saved_signals = []
+
+        # ========== 3단계: 배열의 각 요소를 처리하고 저장 ==========
+        for idx, item_data in enumerate(decision_list):
+            logger.info(f"📝 [{idx+1}/{len(decision_list)}] 거래 결정 처리 중...")
+
+            # expected_response_schema 제거 (있을 경우)
+            if "expected_response_schema" in item_data:
+                item_data.pop("expected_response_schema")
+
+            # thinking 추출 (각 요소별로)
+            item_thinking = None
+            # 1) <thinking> 태그에서 추출 시도 (공통 thinking_part 사용)
+            if thinking_part:
+                item_thinking = thinking_part
+            # 2) JSON 내부의 thinking 필드도 확인 (태그가 없을 경우)
+            elif "thinking" in item_data:
+                item_thinking = item_data.get("thinking")
+
+            # 필수 필드 확인
+            if "coin" not in item_data or "signal" not in item_data:
+                logger.error(f"❌ [{idx+1}] 필수 필드 누락: coin={item_data.get('coin')}, signal={item_data.get('signal')}. 건너뜁니다.")
+                continue
+
+            # Pydantic 검증
+            try:
+                validated_decision = TradeDecision(**item_data)
+            except Exception as e:
+                logger.error(f"❌ [{idx+1}] Pydantic 검증 실패: {e}. 건너뜁니다.")
+                continue
+
+            # account_id는 첫 번째 유효한 결정에서만 조회
+            if account_id is None:
+                account_id = _resolve_account_id(db, model, validated_decision)
+
+            # 거래 결정 검증
+            is_valid, validation_errors = validate_trade_decision(
+                validated_decision,
+                account_id,
+                db,
+                prompt_id=prompt_data.id,
+                signal_created_at=datetime.utcnow()
+            )
+
+            if is_valid:
+                logger.info(f"✅ [{idx+1}] 검증 통과! llm_trading_signal에 저장합니다.")
+                saved_signal = _save_trading_signal(
+                    db=db,
+                    prompt_id=prompt_data.id,
+                    decision=validated_decision,
+                    account_id=account_id,
+                    thinking=item_thinking,  # <thinking> 태그 또는 JSON 필드에서 추출
+                    full_prompt=full_prompt_for_training,  # ORPO 학습용 전체 프롬프트 전달
+                    full_response=full_response  # ORPO 학습용 전체 응답 전달
+                )
+                saved_signals.append(saved_signal)
+                final_decision = validated_decision  # 마지막으로 검증 통과한 결정을 최종 결정으로
+
+                logger.info(
+                    f"✅ [{idx+1}] LLM 거래 신호 저장 완료 (signal_id={saved_signal.id}, coin={validated_decision.coin}, account_id={account_id})"
+                )
+            else:
+                logger.warning(f"⚠️ [{idx+1}] 검증 실패: {validation_errors}")
+                logger.info(f"📝 [{idx+1}] 검증 실패 기록은 llm_trading_execution에만 저장됩니다.")
+
+        # ========== 4단계: 저장 결과 확인 ==========
+        # 저장된 신호가 없으면 재요청 시도 (첫 번째 요소 기준으로 재요청)
+        if not saved_signals:
+            if len(decision_list) > 0:
+                logger.warning(f"⚠️ 모든 거래 결정이 검증에 실패했습니다. 첫 번째 요소 기준으로 재요청을 시도합니다.")
+
+                # 재요청은 첫 번째 요소 기준으로 진행 (단일 결정 재요청)
+                first_item = decision_list[0]
+
+                # 첫 번째 요소로 TradeDecision 생성 시도
+                try:
+                    first_decision = TradeDecision(**first_item)
+                except Exception as e:
+                    logger.error(f"❌ 첫 번째 요소로 TradeDecision 생성 실패: {e}")
+                    raise ValueError("모든 거래 결정이 검증에 실패했고, 재요청도 불가능합니다.") from e
+
+                # 재요청 프롬프트 생성
+                retry_prompt_text = build_retry_prompt(
+                    original_prompt=user_content,
+                    rejection_reasons=["모든 거래 결정이 검증에 실패했습니다."],
+                    original_decision=first_decision
+                )
+
+                # ========== 5단계: LLM에 재요청 ==========
+                try:
+                    logger.info("🔄 LLM 재요청 중...")
+
+                    retry_completion = client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {"role": "system", "content": system_content},
+                            {"role": "user", "content": retry_prompt_text},
+                        ],
+                        temperature=0.0,
+                        response_format={"type": "json_object"},
+                    )
+
+                    # 재요청 응답 파싱
+                    retry_raw_content = None
+                    try:
+                        if isinstance(retry_completion, str):
+                            retry_raw_content = retry_completion
+                        elif hasattr(retry_completion, 'choices') and retry_completion.choices:
+                            retry_raw_content = retry_completion.choices[0].message.content or ""
+                        else:
+                            logger.error(f"❌ 재요청 completion 형식이 예상과 다릅니다.")
+                            raise ValueError("재요청 응답 형식이 올바르지 않습니다.")
+                    except AttributeError as e:
+                        logger.error(f"❌ 재요청 completion에서 content 추출 실패: {e}")
+                        raise ValueError(f"재요청 응답에서 content를 추출할 수 없습니다: {e}") from e
+
+                    if not retry_raw_content or not retry_raw_content.strip():
+                        logger.error(f"❌ 재요청 응답이 비어있습니다.")
+                        raise ValueError("재요청 응답이 비어있습니다.")
+
+                    # 재요청 thinking 추출
+                    retry_thinking = None
+                    if "<thinking>" in retry_raw_content:
+                        thinking_start = retry_raw_content.find("<thinking>")
+                        thinking_end = retry_raw_content.find("</thinking>") + len("</thinking>")
+                        retry_thinking = retry_raw_content[thinking_start:thinking_end]
+
+                    retry_json_part = retry_raw_content.split("</thinking>")[-1].strip() if "</thinking>" in retry_raw_content else retry_raw_content
+
+                    # 재요청 JSON 파싱
+                    try:
+                        retry_decision_data = json.loads(retry_json_part)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"❌ 재요청 JSON 파싱 실패: {e}")
+                        logger.error(f"Retry raw content: {retry_raw_content[:500]}")
+
+                        # JSON 추출 시도
+                        if "{" in retry_json_part and "}" in retry_json_part:
+                            json_start = retry_json_part.find("{")
+                            json_end = retry_json_part.rfind("}") + 1
+                            if json_start < json_end:
+                                try:
+                                    retry_json_part_extracted = retry_json_part[json_start:json_end]
+                                    retry_decision_data = json.loads(retry_json_part_extracted)
+                                    logger.info(f"✅ 재요청 JSON 추출 후 파싱 성공")
+                                except json.JSONDecodeError:
+                                    logger.error(f"❌ 재요청 JSON 추출 후에도 파싱 실패")
+                                    raise ValueError(f"재요청 JSON 파싱 실패: {e}") from e
+                            else:
+                                raise ValueError(f"재요청 JSON 파싱 실패: {e}") from e
+                        else:
+                            raise ValueError(f"재요청 JSON 파싱 실패: {e}") from e
+
+                    # ========== 6단계: 재요청 응답 배열/딕셔너리 형태 확인 및 리스트로 통일 ==========
+                    retry_decision_list = []
+                    if isinstance(retry_decision_data, list):
+                        if len(retry_decision_data) == 0:
+                            logger.error("❌ 재요청 LLM 응답이 빈 배열입니다.")
+                            raise ValueError("재요청 LLM 응답이 빈 배열입니다.")
+                        logger.info(f"📋 재요청 LLM 응답이 배열 형태입니다. 총 {len(retry_decision_data)}개의 거래 결정을 처리합니다.")
+                        retry_decision_list = retry_decision_data
+                    elif isinstance(retry_decision_data, dict):
+                        logger.info(f"📋 재요청 LLM 응답이 딕셔너리 형태입니다. 1개의 거래 결정을 처리합니다.")
+                        retry_decision_list = [retry_decision_data]
+                    else:
+                        logger.error(f"❌ 재요청 LLM 응답이 딕셔너리 또는 배열이 아닙니다. 타입: {type(retry_decision_data)}")
+                        logger.error(f"응답 내용: {json.dumps(retry_decision_data, ensure_ascii=False, indent=2)[:500]}")
+                        raise ValueError(f"재요청 LLM 응답이 딕셔너리 또는 배열이 아닙니다.")
+
+                    # ========== 7단계: 재요청 배열의 각 요소를 처리하고 저장 ==========
+                    retry_saved_signals = []
+                    retry_final_decision = None
+
+                    for retry_idx, retry_item_data in enumerate(retry_decision_list):
+                        logger.info(f"📝 [재요청 {retry_idx+1}/{len(retry_decision_list)}] 거래 결정 처리 중...")
+
+                        # expected_response_schema 제거
+                        if "expected_response_schema" in retry_item_data:
+                            retry_item_data.pop("expected_response_schema")
+
+                        # 재요청에서 thinking 필드 확인
+                        retry_item_thinking = None
+                        if retry_thinking:
+                            retry_item_thinking = retry_thinking
+                        elif "thinking" in retry_item_data:
+                            retry_item_thinking = retry_item_data.get("thinking")
+
+                        # 필수 필드 확인
+                        if "coin" not in retry_item_data or "signal" not in retry_item_data:
+                            logger.error(f"❌ [재요청 {retry_idx+1}] 필수 필드 누락: coin={retry_item_data.get('coin')}, signal={retry_item_data.get('signal')}. 건너뜁니다.")
+                            continue
+
+                        # Pydantic 검증
+                        try:
+                            retry_decision = TradeDecision(**retry_item_data)
+                        except Exception as e:
+                            logger.error(f"❌ [재요청 {retry_idx+1}] Pydantic 검증 실패: {e}. 건너뜁니다.")
+                            continue
+
+                        # 재요청 결과 검증
+                        retry_is_valid, retry_validation_errors = validate_trade_decision(
+                            retry_decision,
+                            account_id,
+                            db,
+                            prompt_id=prompt_data.id,
+                            signal_created_at=datetime.utcnow()
+                        )
+
+                        if retry_is_valid:
+                            logger.info(f"✅ [재요청 {retry_idx+1}] 검증 통과! llm_trading_signal에 저장합니다.")
+                            saved_signal = _save_trading_signal(
+                                db=db,
+                                prompt_id=prompt_data.id,
+                                decision=retry_decision,
+                                account_id=account_id,
+                                thinking=retry_item_thinking,
+                                full_prompt=full_prompt_for_training,  # ORPO 학습용 전체 프롬프트 전달
+                                full_response=retry_raw_content  # 재요청 응답으로 업데이트
+                            )
+                            retry_saved_signals.append(saved_signal)
+                            retry_final_decision = retry_decision
+
+                            logger.info(
+                                f"✅ [재요청 {retry_idx+1}] LLM 거래 신호 저장 완료 (signal_id={saved_signal.id}, coin={retry_decision.coin}, account_id={account_id})"
+                            )
+                        else:
+                            logger.warning(f"⚠️ [재요청 {retry_idx+1}] 검증 실패: {retry_validation_errors}. 건너뜁니다.")
+
+                    # ========== 8단계: 재요청 저장 결과 확인 ==========
+                    if not retry_saved_signals:
+                        logger.error(f"❌ 재요청도 모든 거래 결정이 검증에 실패했습니다.")
+                        raise ValueError("재요청도 모든 거래 결정이 검증에 실패했습니다.")
+
+                    logger.info(f"✅ 재요청으로 총 {len(retry_saved_signals)}개의 거래 신호가 저장되었습니다.")
+                    saved_signals = retry_saved_signals
+                    final_decision = retry_final_decision
+
+                except Exception as retry_error:
+                    logger.error(f"❌ 재요청 실패: {retry_error}", exc_info=True)
+                    raise ValueError("재요청 실패") from retry_error
+            else:
+                # decision_list가 비어있는 경우
+                logger.error("❌ 처리할 거래 결정이 없습니다.")
+                raise ValueError("처리할 거래 결정이 없습니다.")
+
+        # ========== 9단계: 최종 결과 확인 ==========
+        if not saved_signals or not final_decision:
+            logger.error("❌ 저장된 거래 신호가 없습니다.")
+            raise ValueError("저장된 거래 신호가 없습니다.")
+
+        logger.info(f"✅ 총 {len(saved_signals)}개의 거래 신호가 저장되었습니다.")
 
         # 거래 시뮬레이션 실행 (검증 통과 & signal 저장된 경우에만)
-        if account_id and saved_signal:
+        if account_id and saved_signals:
             try:
-                logger.info(f"🎯 거래 시뮬레이션 시작 (prompt_id={saved_signal.id})")
                 simulator = TradingSimulator(db)
                 
                 # 계좌가 초기화되어 있는지 확인 (없으면 초기화)
                 simulator.initialize_account(account_id)
                 
-                # LLM이 판단한 시점의 가격 조회 (intended_price)
-                intended_price = simulator.get_current_price(final_decision.coin)
-                
-                # 거래 실행 (슬리피지 체크 포함)
-                trade_success = simulator.execute_trade_signal(saved_signal, intended_price)
-                
-                if trade_success:
-                    logger.info(f"✅ 거래 실행 완료 (prompt_id={saved_signal.id}, coin={final_decision.coin})")
-                else:
-                    logger.warning(f"⚠️ 거래 실행 실패 (prompt_id={saved_signal.id})")
-                    
+                # 모든 저장된 신호에 대해 거래 실행
+                for idx, signal in enumerate(saved_signals, 1):
+                    try:
+                        # HOLD 신호는 건너뜀
+                        if "hold" in signal.signal.lower():
+                            logger.info(f"📊 [{idx}/{len(saved_signals)}] HOLD 신호: {signal.coin} - 거래하지 않음")
+                            continue
+                        
+                        logger.info(f"🎯 [{idx}/{len(saved_signals)}] 거래 시뮬레이션 시작 (signal_id={signal.id}, coin={signal.coin})")
+                        
+                        # 각 신호의 코인에 맞는 가격 조회
+                        intended_price = simulator.get_current_price(signal.coin)
+                        
+                        # 거래 실행 (슬리피지 체크 포함)
+                        trade_success = simulator.execute_trade_signal(signal, intended_price)
+                        
+                        if trade_success:
+                            logger.info(f"✅ [{idx}/{len(saved_signals)}] 거래 실행 완료 (signal_id={signal.id}, coin={signal.coin})")
+                        else:
+                            logger.warning(f"⚠️ [{idx}/{len(saved_signals)}] 거래 실행 실패 (signal_id={signal.id})")
+                            
+                    except Exception as e:
+                        logger.error(f"❌ [{idx}/{len(saved_signals)}] 거래 실행 중 오류: {e}", exc_info=True)
+                        # 하나의 거래 실패해도 다른 거래는 계속 진행
+                        continue
+                        
             except Exception as e:
-                logger.error(f"❌ 거래 실행 중 오류: {e}")
+                logger.error(f"❌ 거래 시뮬레이션 초기화 중 오류: {e}", exc_info=True)
                 # 거래 실행 실패해도 신호는 저장되었으므로 계속 진행
         else:
-            if not saved_signal:
+            if not saved_signals:
                 logger.warning(
                     f"⚠️ 검증 실패로 거래 시뮬레이션을 실행하지 않습니다. "
                     f"(prompt_id={prompt_data.id})"

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 USERS_TEMPLATE = [
     {"userId": 1, "username": "Gemma", "colors": "#22c55e", "logo": "Gemma_LOGO.png", "why": "Consistency is key."},
     {"userId": 2, "username": "GPT", "colors": "#3b82f6", "logo": "GPT_Logo.png", "why": "Time is a precious resource."},
-    {"userId": 3, "username": "Qwen", "colors": "#f59e0b", "logo": "Qwen_LOGO.png", "why": "Be fearless in pursuit of goals."},
+    {"userId": 3, "username": "Qwen3", "colors": "#f59e0b", "logo": "Qwen_LOGO.png", "why": "Be fearless in pursuit of goals."},
     {"userId": 4, "username": "DeepSeek", "colors": "#ef4444", "logo": "DeepSeek_LOGO.png", "why": "Your potential is limitless."},
     {"userId": 5, "username": "USER", "colors": "#ef4470", "logo": "USERR.png", "why": "Your potential is limitless."},
 ]
@@ -194,3 +194,4 @@ async def broadcast_wallet_data_periodically(manager, wallet_broadcast_interval:
         except Exception as exc:
             logger.error("❌ 지갑 데이터 전송 오류: %s", exc)
             await asyncio.sleep(60)
+

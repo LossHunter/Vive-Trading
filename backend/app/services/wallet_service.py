@@ -199,36 +199,39 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
     
     for user in users:
 
-        # userId를 account_id로 변환
+            # userId를 account_id로 변환
         user_account_id = get_account_id_from_user_id(user["userId"])
 
-        # 해당 사용자의 account_id에 대한 최신 collected_at 찾기
-        user_latest_collected = None
-        for (acc_id, collected_at_key, currency), account in grouped_accounts.items():
-            if acc_id == user_account_id and account.collected_at:
-                collected_at_rounded = account.collected_at.replace(microsecond=0)
-            if user_latest_collected is None or collected_at_rounded > user_latest_collected:
-                user_latest_collected = collected_at_rounded
-    
-    # 해당 사용자의 account_id와 최신 collected_at의 데이터만 필터링
-        accounts = [
+        # 해당 사용자의 account_id에 대한 데이터만 필터링
+        user_accounts = [
             acc for (acc_id, collected_at_key, currency), acc in grouped_accounts.items()
-            if acc_id == user_account_id 
-            and acc.collected_at 
-            and acc.collected_at.replace(microsecond=0) == user_latest_collected
+            if acc_id == user_account_id
         ]
-        # # 전체에서 최신 collected_at 찾기 (모든 account_id 중)
-        # if account_latest_collected:
-        #     latest_collected_at = max(account_latest_collected.values())
-        # else:
-        #     latest_collected_at = None
         
-        # # 최신 collected_at의 데이터만 필터링 (account_id와 collected_at이 일치하는 것)
-        # # collected_at을 초 단위로 반올림하여 비교
-        # accounts = [
-        #     acc for (acc_id, collected_at_key, currency), acc in grouped_accounts.items()
-        #     if acc.collected_at and acc.collected_at.replace(microsecond=0) == latest_collected_at
-        # ]
+        # currency별로 가장 최신 데이터 찾기
+        currency_latest = {}  # {currency: account}
+        for account in user_accounts:
+            if not account.currency:
+                continue
+                
+            currency = account.currency.upper()
+            # "KRW-BTC" 형식에서 "BTC"만 추출
+            if "-" in currency:
+                currency = currency.split("-")[1]
+            
+            # 해당 currency의 최신 데이터 찾기
+            if currency not in currency_latest:
+                currency_latest[currency] = account
+            else:
+                # collected_at 비교 (초 단위로 반올림)
+                current_collected = account.collected_at.replace(microsecond=0) if account.collected_at else None
+                latest_collected = currency_latest[currency].collected_at.replace(microsecond=0) if currency_latest[currency].collected_at else None
+                
+                if current_collected and latest_collected:
+                    if current_collected > latest_collected:
+                        currency_latest[currency] = account
+                elif current_collected and not latest_collected:
+                    currency_latest[currency] = account
         
         # 코인 수량 초기화
         coin_balances = {
@@ -240,26 +243,12 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
             "KRW": 0.0
         }
         
-        # 계정 정보에서 코인 수량 추출
-        seen_currencies = set()
-        for account in accounts:
-            if account.currency:
-                currency = account.currency.upper()
-                # "KRW-BTC" 형식에서 "BTC"만 추출
-                if "-" in currency:
-                    currency = currency.split("-")[1]
-            else:
-                currency = ""
-            
-            if currency in seen_currencies:
-                continue
-            seen_currencies.add(currency)
-            
-            balance = float(account.balance) if account.balance else 0.0
-            
+        # currency별 최신 데이터에서 코인 수량 추출
+        for currency, account in currency_latest.items():
             if currency in coin_balances:
+                balance = float(account.balance) if account.balance else 0.0
                 coin_balances[currency] = balance
-        
+                logger.debug(f"💰 [userId={user['userId']}] {currency}: {balance} (collected_at: {account.collected_at})")
         # 전체 잔액 계산
         total = (
             (coin_balances["BTC"] * ticker_prices.get("BTC", 0)) +
@@ -269,6 +258,7 @@ async def get_wallet_data(db: Session, target_date: Optional[datetime] = None) -
             (coin_balances["XRP"] * ticker_prices.get("XRP", 0)) +
             coin_balances["KRW"]
         )
+        logger.info(f"💰 [userId={user['userId']}] 계산된 total: {total}, SOL 기여도: {coin_balances['SOL'] * ticker_prices.get('SOL', 0)}")
         
         # llm_trading_signal에서 why와 position 조회
         user_signal = user_signals.get(user["userId"], {})
