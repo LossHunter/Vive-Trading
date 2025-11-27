@@ -1,0 +1,78 @@
+/* Modal 전체 화면 백드롭 */
+.modal-backdrop {
+    position: fixed;      
+    top: 0;
+    left: 0;
+    width: 100vw;      
+    height: 100vh;          
+    background: rgba(0, 0, 0, 0.2);
+    display: flex;        
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;        
+}
+
+
+title {
+    position: fixed;
+    width: 100%;
+    text-align: center;
+}
+
+/* 모달 박스 */
+.modal-box {
+    position: relative;
+    background: inherit;
+    padding: 25px;
+    border-radius: 12px;
+    width: 50%;
+    height: 50%;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    position: relative;     
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap:30px;
+}
+
+.modal-box .history-card{
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.modal-box::-webkit-scrollbar {
+    display: none;
+}
+
+.modal-box .history-card {
+    width: 100%;
+}
+.modal-box .history-card h2{
+    font-size: 25px;
+    color: white;
+    margin-bottom: 5;
+    margin-top: 1px;
+}
+
+.modal-box .history-card p{
+    font-size: 20px;
+    color: white;
+    margin-bottom: 1px;
+    line-height: 1.4;
+}
+
+/* 검색창 */
+.modal-box .Search {
+    position: sticky;
+    top: 0;                /* 모달 상단에서 고정 */
+    background: rgba(0,0,0,0.5); /* 배경 살짝 반투명, 스크롤시 글씨 가독성 유지 */
+    z-index: 10;           /* 다른 카드 위로 올라오도록 */
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    margin-bottom: 10px;
+    width: 100%;           /* 모달 너비에 맞춤 */
+    height: 50px;
+    font-size: 20px;
+    color: white;
+}

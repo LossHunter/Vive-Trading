@@ -1,0 +1,72 @@
+﻿/* ===============================
+    기본 세팅 (Soft Minimal Light Theme)
+================================= */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  --bg-color: #f0f2f5;    /* 부드러운 라이트 배경 */
+  --text-color: #232d3b;  /* 다크 차콜 글자색 */
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text-color);
+  
+  /* 방사형 그라데이션 + 미세 노이즈 */
+  background: 
+    radial-gradient(circle at top left, #ffffff, #f0f2f5),
+    repeating-linear-gradient(0deg, rgba(35, 45, 59, 0.01) 0px, transparent 1px); 
+
+  background-size: cover, 100% 100%;
+  transition: background-color 0.4s, color 0.4s, background 0.4s;
+}
+
+/* ===============================
+    다크모드 (Deep Shadow Theme)
+================================= */
+body.dark-mode {
+  --bg-color: #171a24;    /* 딥 다크 배경 */
+  --text-color: #e8e8e8;  /* 소프트 화이트 글자 */
+
+  /* 방사형 그라데이션 + 미세 노이즈 */
+  background: 
+    radial-gradient(circle at center, #212530, #171a24),
+    repeating-linear-gradient(0deg, rgba(232, 232, 232, 0.01) 0px, transparent 1px); 
+  background-size: cover, 100% 100%;
+}
+
+/* ===============================
+    다크 모드 토글 버튼 (Glassmorphism)
+================================= */
+.dark-toggle-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.1); 
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 999;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.2), inset 0 0 5px rgba(255,255,255,0.1); 
+  transition: transform 0.2s, background 0.3s;
+  color: inherit; 
+  font-size: 1.2rem;
+}
+
+.dark-toggle-btn:hover {
+  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.2);
+}

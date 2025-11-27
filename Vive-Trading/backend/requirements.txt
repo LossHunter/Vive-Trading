@@ -1,0 +1,35 @@
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+openai
+requests
+
+# RAG & ML
+chromadb
+sentence-transformers
+langchain
+langchain-chroma
+langchain-community
+tqdm
+numpy
+pandas
+scikit-learn
+torch
+
+# 기타
+python-dotenv
+#
+wandb
+
+# DB
+sqlalchemy
+psycopg2-binary
+aiohttp
+
+# front
+PyJwt
+httpx
+google-auth
+dotenv
+wandb

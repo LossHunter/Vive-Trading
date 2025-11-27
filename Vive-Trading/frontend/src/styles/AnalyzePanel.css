@@ -1,0 +1,168 @@
+.right-panel {
+    width: 100%;
+    height: 100%;
+    color: inherit;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+/* 상단 태그 */
+.right-tag {
+    font-size: 25px;
+    font-weight: bold;
+    color: inherit;
+    text-align: center;
+    margin-bottom:20px;
+}
+
+.custom-select-container {
+    position: relative;
+    width: 100%;
+}
+
+/* 선택 박스 */
+.custom-select-header {
+    padding: 12px 16px;
+    background-color: inherit;
+    backdrop-filter: blur(10px); /* 블러 효과로 유리 느낌 */
+    -webkit-backdrop-filter: blur(10px); /* 사파리 대응 */
+    border-radius: 12px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    color: inherit; /* 상위 색상 상속 */
+    box-shadow: inset 0 -2px 4px rgba(255,255,255,0.05),
+                0 4px 6px rgba(0,0,0,0.2); /* 안쪽/바깥쪽 그림자 조합 */
+    transition: background 0.3s, transform 0.2s;
+}
+
+.custom-select-header:hover {
+    background-color: rgba(255, 255, 255, 0.15); /* 호버 시 약간 밝게 */
+    transform: translateY(-2px); /* 살짝 들어올리는 느낌 */
+}
+
+/* 화살표 */
+.arrow {
+    border: solid #555;
+    border-width: 0 2px 2px 0;
+    display: inline-block;
+    padding: 5px;
+    transform: rotate(45deg);
+    transition: transform 0.3s ease;
+}
+
+.arrow.up {
+    transform: rotate(-135deg);
+}
+
+/* 옵션 목록 */
+.custom-select-options {
+    width: 100%;
+    background-color: inherit;
+    margin-top: 6px;
+    border-radius: 12px;
+    max-height: auto;
+    overflow-y: auto;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+    z-index: 1000;
+    padding: 0;
+    list-style: none;
+}
+
+/* 옵션 항목 */
+.custom-select-options li {
+    padding: 12px 16px;
+    cursor: pointer;
+    color: inherit;
+    font-weight: 500;
+}
+
+/* 스크롤바 스타일 */
+.custom-select-options::-webkit-scrollbar {
+    width: 8px;
+}
+
+.custom-select-options::-webkit-scrollbar-track {
+    background: inherit;
+    border-radius: 8px;
+}
+
+.custom-select-options::-webkit-scrollbar-thumb {
+    background-color: inherit;
+    border-radius: 8px;
+    border: 2px solid inherit;
+}
+
+.right-space {
+    width: 100%;
+    border-top: 1px solid #aaa;
+    margin-top: 15px;
+    margin-bottom: 12px;
+}
+
+/* 결과 박스 */
+.bot-position {
+    width: 100%;
+    background: inherit;
+    transition: background 0.3s, transform 0.2s;
+    cursor: pointer;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 0; /* 부모 패딩 제거 */
+    box-sizing: border-box; /* border 포함해서 width 100% */
+    transition: 
+        transform 0.25s ease,
+        box-shadow 0.25s ease,
+        background-color 0.25s ease;
+}
+
+.bot-position:hover {
+    transform: translateY(-5px);
+}
+
+.usemodel, .position, .why, .time {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    box-shadow: inset 0 -1px 3px rgba(255,255,255,0.05),
+                0 3px 6px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+    min-width: 0; /* flex 내부 여백 문제 해결 */
+}
+.usemodel p, .position p, .why p, .time p {
+    color: inherit;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+
+/* ReadMe */
+.ReadMe {
+    padding: 20px;
+    background-color: inherit;
+    text-align: center;
+    margin: 10px 0;
+}
+
+/* 다크 모드용 변경 */
+.ReadMe h3 {
+    margin: 0 0 10px 0;
+    font-size: 20pox;
+    color: inherit;
+}
+
+.ReadMe p {
+    margin: 5px 0;
+    font-size: 15px;
+    color: inherit;
+    line-height: 1.4;
+}

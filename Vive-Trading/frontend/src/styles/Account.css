@@ -1,0 +1,244 @@
+.account-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+.center-left {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    row-gap: 25px;
+    column-gap: 25px;
+    align-items: center;
+    justify-items: center;
+    justify-content: center;
+    overflow-y: auto;
+}
+
+/* account-information */
+.account-information {
+    width: 400px;
+    height: 450px;
+    padding: 20px;
+    background-color: #f7f9fc;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    cursor: pointer;
+    transition: 
+        transform 0.25s ease,
+        box-shadow 0.25s ease,
+        background-color 0.25s ease;
+}
+
+.account-information:hover {
+    /* 카드 살짝 떠오르는 느낌 */
+    transform: translateY(-5px);
+
+    /* 그림자 강화 */
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+
+    /* 배경색 약간 강조 */
+    background-color: #eef2f7;
+}
+
+.account-information h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 1.5rem;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+}
+
+.account-information .infro p {
+    margin: 12px 0;
+    font-size: 1rem;
+    color: #444;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.account-information .infro input[type="text"] {
+    flex: 1;
+    margin-left: 10px;
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.account-information .infro input[type="text"]:focus {
+    border-color: #4a90e2;
+    box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
+    outline: none;
+}
+
+.account-information .infro button {
+    width: 100%;
+    padding: 10px 0;
+    margin-top: 60px;
+    background-color: #4a90e2;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.account-information .infro button:hover {
+    background-color: #357ABD;
+}
+
+.infro p {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    font-size: 18px;
+    font-weight: bold;
+    color: black;
+    margin: 10px;
+}
+
+
+/* coin_wallet */
+.coin-wallet {
+    width: 400px;
+    height: 450px;
+    
+    padding: 15px 20px;
+    background-color: #f7f9fc;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    text-align: center;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    cursor: pointer;
+    transition: 
+        transform 0.25s ease,
+        box-shadow 0.25s ease,
+        background-color 0.25s ease;
+}
+
+.coin-wallet:hover {
+    /* 카드 살짝 떠오르는 느낌 */
+    transform: translateY(-5px);
+
+    /* 그림자 강화 */
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+
+    /* 배경색 약간 강조 */
+    background-color: #eef2f7;
+}
+
+.coin-wallet h2 {
+    font-size: 25px;
+    font-weight: bold;
+    color: black;
+    margin-bottom: 15px;
+}
+
+.coin-wallet p {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.coin-wallet .roundchart {
+    width: 100%;
+    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* history */
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 15px;
+  width: 400px;
+  height: 450px;
+  box-sizing: border-box;
+  background-color: #f9f9f9;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 
+        transform 0.25s ease,
+        box-shadow 0.25s ease,
+        background-color 0.25s ease;
+}
+
+.history:hover {
+    /* 카드 살짝 떠오르는 느낌 */
+    transform: translateY(-5px);
+
+    /* 그림자 강화 */
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+
+    /* 배경색 약간 강조 */
+    background-color: #eef2f7;
+}
+
+/* 검색창 */
+.history .Search {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  margin-bottom: 10px;
+  width: 250px;
+}
+
+/* history-card */
+.history-card {
+  background-color: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 12px 15px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.history-card h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.history-card p {
+  margin: 0;
+  font-size: 14px;
+  color: #555;
+}
+
+.history-card span.date {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+
+
+/* spacer  */ 
+.spacer {
+  width: 1px;
+  height: 100%; /* 세로 구분선이면 높이를 지정 */
+  background-color: #bbb; /* 은은한 회색 */
+  margin-left: 10px;
+  margin-right: 10px;
+}
+
+/* center-right  */ 
+.center-right {
+  width: 100%;
+}

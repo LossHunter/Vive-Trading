@@ -1,0 +1,20 @@
+﻿/* footer */
+footer {
+    height: 60px;
+    width: 100%;
+    /* border: 2px solid black; /* footer 영역 border 시각화 용 */
+}
+
+.footer-content {
+    width: 100%;
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+    .footer-content p {
+        margin: 3px 0;
+        font-family: 'Noto Sans KR', sans-serif;
+    }
+
