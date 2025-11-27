@@ -281,6 +281,13 @@ class LLMTradingExecution(Base):
     balance_before = Column(Numeric(30, 10), comment="거래 전 잔액")
     balance_after = Column(Numeric(30, 10), comment="거래 후 잔액")
     
+    # 프롬프트 정보
+    confidence = Column(Numeric(5, 4), comment="신뢰도 (0.0 ~ 1.0)")
+    justification = Column(Text, comment="거래 근거 설명")
+    thinking = Column(Text, comment="LLM의 사고 과정 (Chain of Thought, CoT)")
+    full_prompt = Column(Text, comment="LLM에게 전송된 전체 프롬프트 (System + User, ORPO 학습용)")
+    full_response = Column(Text, comment="LLM이 반환한 전체 응답 (Raw Content, ORPO 학습용)")
+
     # 시각 정보
     signal_created_at = Column(DateTime(timezone=True), comment="신호 생성 시각")
     executed_at = Column(DateTime(timezone=True), server_default=func.now(), comment="실행 시각")

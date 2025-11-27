@@ -277,7 +277,26 @@ class LLMAccountConfig:
         """
         return cls.MODEL_STRATEGY_MAP.get(model_name, "neutral")
     
+    # AttributeError: type object 'LLMAccountConfig' has no attribute 'get_strategy_for_model' 오류 발생하여 해당 함수 추가
+    @classmethod
+    def get_strategy_for_model(cls, model_name: str):
+        """
+        모델명에 맞는 트레이딩 전략을 반환
+        - TradingStrategy Enum을 사용
+        """
+        # 순환 import 피하려고 함수 안에서 import
+        from app.core.prompts import TradingStrategy
 
+        MODEL_STRATEGY_MAP = {
+            # 각 모델별 전략 성향 매핑 (원하는 대로 바꿔도 됨)
+            "google/gemma-3-27b-it": TradingStrategy.AGGRESSIVE,
+            "openai/gpt-oss-120b": TradingStrategy.AGGRESSIVE,
+            "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8": TradingStrategy.AGGRESSIVE,
+            "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": TradingStrategy.AGGRESSIVE,
+        }
+
+        # 매핑에 없으면 기본값은 AGGRESSIVE
+        return MODEL_STRATEGY_MAP.get(model_name, TradingStrategy.AGGRESSIVE)
     
 class ScriptConfig:
     """스크립트 및 API 테스트용 설정 클래스"""
