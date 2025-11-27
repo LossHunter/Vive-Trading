@@ -158,6 +158,11 @@ CREATE TABLE "llm_trading_execution" (
   "executed_quantity" numeric(30,10),
   "balance_before" numeric(30,10),
   "balance_after" numeric(30,10),
+  "confidence" numeric(5,4),
+  "justification" text,
+  "thinking" text,
+  "full_prompt" text,
+  "full_response" text,
   "response_created_at" timestamptz,
   "executed_at" timestamptz DEFAULT (now())
 );
@@ -596,5 +601,3 @@ COMMENT ON COLUMN "account_information"."krw" IS '보유 원화 잔액';
 COMMENT ON COLUMN "account_information"."total" IS '총 자산 금액 (KRW 기준)';
 
 COMMENT ON COLUMN "account_information"."created_at" IS '레코드 생성 시각 (UTC)';
-
-
