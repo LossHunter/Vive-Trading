@@ -5,9 +5,8 @@
 기존 코드를 수정하지 않으며, 독립적으로 실행 가능합니다.
 
 사용법:
-    python historical_simulation.py
-    python historical_simulation.py --start "2024-01-01 00:00:00" --end "2024-01-31 23:59:59" --interval 3
-
+    docker-compose exec backend python test.py
+    82번째 줄"account_id_suffix": "2",  # 본인 모델 넘버에 맞춰 수정
 설정:
     스크립트 내부의 SIMULATION_CONFIG를 수정하여 시뮬레이션 범위를 지정합니다.
 
@@ -31,6 +30,9 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from openai import OpenAI
+
+from app.core.prompts import STRATEGY_PROMPTS, TradingStrategy
+from app.core.config import LLMAccountConfig
 
 # 기존 모듈 import (수정 없음)
 from app.db.database import (
@@ -74,11 +76,11 @@ client = OpenAI(
 # docker-compose exec backend python test.py  명령어 터미널에서 사용하면됨.         
 # 시뮬레이션 설정 (스크립트 내부에서 수정)
 SIMULATION_CONFIG = {
-    "start_time": datetime(2025, 11, 23, 8, 3, tzinfo=timezone.utc),
-    "end_time": datetime(2025, 11, 23, 8, 3, tzinfo=timezone.utc),
+    "start_time": datetime(2025, 9, 27, 8, 3, tzinfo=timezone.utc),
+    "end_time": datetime(2025, 9, 27, 9, 3, tzinfo=timezone.utc),
     "interval_minutes": 3,  # 3분마다 거래 결정
     "model_name": None,  # None이면 기본 모델 사용
-    "account_id_suffix": "4",  # 시뮬레이션용 계좌 구분 (기존 1-4와 구분)
+    "account_id_suffix": "1",  # 시뮬레이션용 계좌 구분 (기존 1-4와 구분)
     "initial_capital": Decimal("10000000"),  # 초기 자본금 (1000만원)
 }
 
@@ -1034,41 +1036,86 @@ class HistoricalTradingSimulator:
 
 
 
-def _build_system_message() -> str:
-    """시스템 프롬프트 생성 (기존 로직 참고)"""
+def _build_system_message(model_name: Optional[str] = None) -> str:
+    """시스템 프롬프트 생성 (전략 포함)"""
     schema = TradeDecision.model_json_schema()
+    
+    # 프롬프트용 스키마 수정 (실제 모델은 변경하지 않음)
+    if "properties" in schema and "signal" in schema["properties"]:
+        # signal enum을 buy, sell, hold로 제한
+        schema["properties"]["signal"]["enum"] = ["buy", "sell", "hold"]
+        
     schema_str = json.dumps(schema, ensure_ascii=False, indent=2)
     
-    return f"""You are a trading decision assistant. You must respond with a valid JSON object that matches the following schema:
+    strategy_prompt = ""
+    if model_name:
+        strategy_key = LLMAccountConfig.get_strategy_for_model(model_name)
+        strategy_prompt = STRATEGY_PROMPTS.get(
+            strategy_key, 
+            STRATEGY_PROMPTS[TradingStrategy.NEUTRAL]
+        )
+    
+    return f"""You are a top-tier Wall Street professional analyst and a world-class crypto trading expert. 
+You have decades of experience in technical analysis, market sentiment analysis, and risk management.
+Your goal is to maximize profit while strictly managing risk. You are decisive, analytical, and forward-looking.
+
+You must respond with a valid JSON object that matches the following schema:
 
 {schema_str}
 
-IMPORTANT:
-- You must include "coin" (string) and "signal" (one of: buy_to_enter, sell_to_exit, hold, close_position, buy, sell, exit) fields
-- All other fields are optional
-- Return ONLY the JSON object, nothing else
-- Do not include the schema itself in your response"""
+IMPORTANT RULES:
 
+**Required Fields:**
+- "coin" (string): The cryptocurrency symbol (e.g., "BTC", "ETH")
+- "signal" (string): One of: "buy", "sell", "hold" (Simpler signals for this simulation)
+
+**Recommended Fields:**
+- "justification" (string): Detailed trade rationale based on market conditions, technical indicators, and trend analysis.
+- "thinking" (string): Step-by-step reasoning process.
+- "confidence" (float 0.0-1.0): Confidence level in this decision.
+
+**Trading Parameters:**
+- "quantity" (float): Amount to trade (REQUIRED for "buy", "sell"). For "hold", this can be null or 0.
+- "stop_loss" (float): Stop loss price. **REQUIRED for ALL signals including HOLD.**
+- "profit_target" (float): Target profit price. **REQUIRED for ALL signals including HOLD.**
+- "leverage" (int): MUST ALWAYS BE 1 (Upbit does not support leverage trading).
+- "risk_usd" (float): Risk amount in USD (optional but recommended).
+
+**CRITICAL: HOLD Signal Behavior:**
+- "hold" does NOT mean "ignore". It means you have analyzed the market and decided that the best course of action is to wait.
+- **Even when holding, you MUST provide `profit_target` and `stop_loss`** to indicate your market outlook.
+    - If you are holding a position, where would you sell for profit? Where would you cut losses?
+    - If you are not holding a position, at what price would you consider entering (profit_target as potential entry or target)? Or what price invalidates your bullish view (stop_loss)?
+- Provide a strong justification for why you are holding (e.g., "Waiting for a breakout above X", "Market is too volatile, waiting for stabilization").
+
+**Response Format:**
+- Return ONLY the JSON object, nothing else.
+- Do not include the schema or any explanatory text.
+
+{strategy_prompt}"""
 
 async def get_trade_decision_for_simulation(
     db: Session,
     prompt_data: LLMPromptData,
     model_name: Optional[str],
     account_id: UUID,
-    simulation_time: datetime
+    simulation_time: datetime,
+    extra_context: Optional[Dict[str, Any]] = None
 ) -> Optional[TradeDecision]:
     """시뮬레이션용 거래 결정 요청 (LLM 관련 데이터 생성)"""
     try:
         model = get_preferred_model_name(model_name)
         
-        system_content = _build_system_message()
-        user_content = f"""다음은 현재 시장 상황과 계정 정보입니다:
+        system_content = _build_system_message(model)  # model_name 전달
+        user_content = f"""Here is the current market situation and account information:
 
-## 프롬프트 텍스트
+## Prompt Text
 {prompt_data.prompt_text}
 
-위 정보를 바탕으로 거래 결정을 내려주세요. 반드시 JSON 형식으로 응답해야 하며, "coin"과 "signal" 필드는 필수입니다."""
-        
+## Extra Context
+{json.dumps(extra_context, ensure_ascii=False, indent=2) if extra_context else "None"}
+
+Based on the information above, please make a trading decision. You must respond in JSON format, and the "coin" and "signal" fields are mandatory."""        
         # ORPO 학습용 전체 프롬프트 구성 (System + User)
         full_prompt_for_training = f"""=== SYSTEM PROMPT ===
 {system_content}

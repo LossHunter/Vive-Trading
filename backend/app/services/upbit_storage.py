@@ -4,7 +4,7 @@ Upbit 데이터 저장 모듈
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 from decimal import Decimal
 from sqlalchemy.orm import Session
@@ -49,9 +49,10 @@ class UpbitDataStorage:
         
         try:
             dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
 
-            # 핵심: -9시간 적용 (KST → UTC 변환)
-            dt = dt - timedelta(hours=9)
+            # dt = dt - timedelta(hours=9) # 제거: UTC 데이터도 -9시간 되는 문제 수정
             return dt
             
         except Exception as e:
@@ -295,6 +296,7 @@ class UpbitDataStorage:
         except Exception as e:
             self.db.rollback()
             logger.error(f"❌ [저장] {market} 3분봉 커밋 실패: {e}")
+            return 0
         
         return saved_count
     
@@ -371,6 +373,7 @@ class UpbitDataStorage:
         except Exception as e:
             self.db.rollback()
             logger.error(f"❌ [저장] {market} 일봉 커밋 실패: {e}")
+            return 0
         
         return saved_count
     
