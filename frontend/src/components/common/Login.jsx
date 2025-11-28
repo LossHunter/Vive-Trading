@@ -4,9 +4,11 @@ import Google_Login from '../../assets/Google-Sign.svg'
 import { LoginTokenSend } from '../../services/Http_Post.jsx'
 import Loading from './Loading.jsx'
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom'
 
 export default function LoginModel({ onClose }) {
     const [loading, setLoading] = useState(false)
+    const navigate = useNavigate()
 
     const googleLogin = useGoogleLogin({
         flow: 'auth-code',
@@ -25,12 +27,12 @@ export default function LoginModel({ onClose }) {
             setLoading(false);
             
             localStorage.setItem("isLogin", true);
-            window.location.reload(); 
+            navigate('/home')
         },
         onError: (error) => {
             console.log('Google 리디렉션 로그인 실패:', error);
             setLoading(false);
-            window.location.reload(); 
+            navigate('/home')
         }
     });
     

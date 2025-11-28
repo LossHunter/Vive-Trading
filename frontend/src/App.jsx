@@ -1,4 +1,4 @@
-import { Route, Routes, BrowserRouter } from 'react-router-dom';
+import { Route, Routes, BrowserRouter, HashRouter } from 'react-router-dom';
 import './App.css'
 import Home from './pages/home.jsx'
 import Dashboard from './pages/dashboard.jsx'
@@ -50,12 +50,12 @@ function App() {
             >
                 <Settings size={20} />
             </button>
-            <BrowserRouter>
+            <HashRouter>
                 <Routes>
                     <Route path="/" element={<Home_Page setAnalyzeData={setAnalyzeData} />} />
                     <Route path="/dashboard" element={<Dash_Board analyzeData={analyzeData} />} />
                 </Routes>
-            </BrowserRouter>
+            </HashRouter>
         </>
     )
 }
