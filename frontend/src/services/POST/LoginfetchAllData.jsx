@@ -115,7 +115,6 @@ export default async function LoginfetchAllData() {
             };
         });
 
-        console.log(allData)
         return { allData, check: true };
 
     

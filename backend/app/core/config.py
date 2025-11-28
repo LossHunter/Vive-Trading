@@ -11,13 +11,13 @@ load_dotenv(dotenv_path=env_path)
 
 class Settings(BaseSettings):
     # vLLM 서버의 base URL. 환경 변수에서 읽어옵니다.
-    VLLM_BASE_URL: str = "https://unmummied-keshia-feelingly.ngrok-free.dev/v1" # 디폴트
+    VLLM_BASE_URL: str = "https://ktcloudvt.ngrok-free.dev" # 디폴트
     
     # vLLM API 키 (필요한 경우). 현재는 비워둡니다.
     VLLM_API_KEY: str = ""
     UPBIT_ACCESS_KEY: str
     UPBIT_SECRET_KEY: str
-    VLLM_DEFAULT_MODEL: str = "Qwen/Qwen3-30B-A3B-Thinking-2507-FP8"
+    VLLM_DEFAULT_MODEL: str = "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
 
     # Chroma DB 인증 정보 (필요한 경우). 환경 변수에서 읽어옵니다.
     CHROMA_AUTH_CREDENTIALS: str = "your_secure_password" # Docker Compose에서 설정한 비밀번호와 일치해야 합니다.

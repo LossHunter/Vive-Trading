@@ -8,15 +8,17 @@ import { Settings } from "lucide-react";
 import { getDB } from "./components/common/OpenDB.jsx"
 
 
-function Home_Page() {
-    return <Home />;
+function Home_Page({ setAnalyzeData  }) {
+    return <Home setAnalyzeData={setAnalyzeData} />;
 }
 
-function Dash_Board() {
-    return <Dashboard />;
+function Dash_Board({ analyzeData }) {
+    return <Dashboard analyzeData={analyzeData} />;
 }
 
 function App() {
+    const [analyzeData, setAnalyzeData] = useState(null);
+
     // DB 테이블 생성
     useEffect(() => {
         (async () => {
@@ -50,8 +52,8 @@ function App() {
             </button>
             <BrowserRouter>
                 <Routes>
-                    <Route path="/" element={<Home_Page />} />
-                    <Route path="/dashboard" element={<Dash_Board />} />
+                    <Route path="/" element={<Home_Page setAnalyzeData={setAnalyzeData} />} />
+                    <Route path="/dashboard" element={<Dash_Board analyzeData={analyzeData} />} />
                 </Routes>
             </BrowserRouter>
         </>

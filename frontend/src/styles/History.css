@@ -1,0 +1,61 @@
+.history-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* 검색창 */
+.history-container .Search {
+    background: rgba(0,0,0,0.5); 
+    z-index: 10;          
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    margin-bottom: 10px;
+    width: 500px; 
+    min-width: 400px;      
+    height: 50px;
+    font-size: 20px;
+    color: white;
+}
+
+.history-container .Search::placeholder {
+    color: white;
+    opacity: 1;
+}
+
+.card-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* 4열 */
+    gap: 20px; /* 카드 간 간격 */
+    padding: 20px;
+    overflow-y: auto; /* 필요하면 스크롤 가능 */
+}
+
+.card-history {
+    background: inherit; /* 어두운 배경 */
+    color: inherit;
+    padding: 16px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card-history:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+.card-time {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+    color: #ffd700; /* 강조 색상 */
+}
+
+.card-model,
+.card-reason,
+.card-position {
+    font-size: 0.95rem;
+    margin: 4px 0;
+}

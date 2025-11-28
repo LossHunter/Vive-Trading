@@ -2,15 +2,15 @@
 import "../../styles/Wallet_Rank.css";
 
 import GPT_Logo from "../../assets/ChatGPT_LOGO.png";
-import Gemini_LOGO from "../../assets/Gemini_LOGO.png";
+import Gemma_LOGO from "../../assets/Gemma_LOGO.png";
 import DeepSeek_LOGO from "../../assets/DeepSeek_LOGO.png";
-import Grok_LOGO from "../../assets/Grok_LOGO.png";
+import Qwen3_LOGO from "../../assets/Qwen3_LOGO.png";
 
 const logoMap = {
     "GPT_Logo.png": GPT_Logo,
-    "Gemini_LOGO.png": Gemini_LOGO,
+    "Gemma_LOGO.png": Gemma_LOGO,
     "DeepSeek_LOGO.png": DeepSeek_LOGO,
-    "Grok_LOGO.png": Grok_LOGO,
+    "Qwen3_LOGO.png": Qwen3_LOGO,
 };
 
 export default function WalletList({ sender_wallet, setbot }) {

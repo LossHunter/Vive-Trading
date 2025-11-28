@@ -79,8 +79,8 @@ SIMULATION_CONFIG = {
     "start_time": datetime(2025, 11, 23, 8, 3, tzinfo=timezone.utc),
     "end_time": datetime(2025, 11, 26, 8, 3, tzinfo=timezone.utc),
     "interval_minutes": 3,  # 3분마다 거래 결정
-    "model_name": None,  # None이면 기본 모델 사용
-    "account_id_suffix": "2",  # 시뮬레이션용 계좌 구분 (기존 1-4와 구분)
+    "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",  # None이면 기본 모델 사용
+    "account_id_suffix": "4",  # 시뮬레이션용 계좌 구분 (기존 1-4와 구분)
     "initial_capital": Decimal("10000000"),  # 초기 자본금 (1000만원)
 }
 
