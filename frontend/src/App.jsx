@@ -1,4 +1,4 @@
-import { Route, Routes, BrowserRouter } from 'react-router-dom';
+import { Route, Routes, BrowserRouter, HashRouter } from 'react-router-dom';
 import './App.css'
 import Home from './pages/home.jsx'
 import Dashboard from './pages/dashboard.jsx'
@@ -8,15 +8,17 @@ import { Settings } from "lucide-react";
 import { getDB } from "./components/common/OpenDB.jsx"
 
 
-function Home_Page() {
-    return <Home />;
+function Home_Page({ setAnalyzeData  }) {
+    return <Home setAnalyzeData={setAnalyzeData} />;
 }
 
-function Dash_Board() {
-    return <Dashboard />;
+function Dash_Board({ analyzeData }) {
+    return <Dashboard analyzeData={analyzeData} />;
 }
 
 function App() {
+    const [analyzeData, setAnalyzeData] = useState(null);
+
     // DB 테이블 생성
     useEffect(() => {
         (async () => {
@@ -48,12 +50,12 @@ function App() {
             >
                 <Settings size={20} />
             </button>
-            <BrowserRouter>
+            <HashRouter>
                 <Routes>
-                    <Route path="/" element={<Home_Page />} />
-                    <Route path="/dashboard" element={<Dash_Board />} />
+                    <Route path="/" element={<Home_Page setAnalyzeData={setAnalyzeData} />} />
+                    <Route path="/dashboard" element={<Dash_Board analyzeData={analyzeData} />} />
                 </Routes>
-            </BrowserRouter>
+            </HashRouter>
         </>
     )
 }

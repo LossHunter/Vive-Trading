@@ -1,0 +1,62 @@
+.history-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* 검색창 */
+.history-container .Search {
+    background: rgba(0,0,0,0.5); 
+    z-index: 10;          
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    margin-bottom: 10px;
+    width: 500px; 
+    min-width: 400px;      
+    height: 50px;
+    font-size: 20px;
+    color: white;
+}
+
+.history-container .Search::placeholder {
+    color: white;
+    opacity: 1;
+}
+
+.card-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    padding: 20px;
+    overflow-y: auto;
+    font-family: 'Inter', 'Noto Sans KR', 'Helvetica Neue', Arial, sans-serif; /* 전체 글꼴 */
+}
+
+.card-history {
+    background: inherit;
+    color: inherit;
+    padding: 16px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    font-weight: 500; /* 글씨 두께 살짝 강조 */
+    line-height: 1.5; /* 줄간격 확보 */
+    letter-spacing: 0.5px; /* 글자 간격 약간 늘리기 */
+}
+
+.card-time {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+    color: #ffd700;
+    font-family: 'Courier New', Courier, monospace; /* 시계/시간 강조 느낌 */
+    font-weight: 600;
+}
+
+.card-model,
+.card-reason,
+.card-position {
+    font-size: 0.95rem;
+    margin: 4px 0;
+    font-family: 'Inter', 'Noto Sans KR', 'Helvetica Neue', Arial, sans-serif;
+}

@@ -60,7 +60,7 @@ function data_split(data) {
     return { sender_chart, sender_analyze, sender_wallet };
 }
 
-export default function Home() {
+export default function Home({setAnalyzeData}) {
     const [bot, setbot] = useState("all");
     const [InitData, setInitData] = useState(null);
     const [LiveData, setLiveData] = useState(null);
@@ -142,7 +142,16 @@ export default function Home() {
         }
     }, [MappingData])
 
-   return (
+    useEffect(() =>
+    {
+        if(sender_analyze.length>0)
+        {
+            setAnalyzeData(sender_analyze)
+        }
+    },
+    [sender_analyze])
+    
+    return (
     <>
         {loading ? (
         <Loading />
