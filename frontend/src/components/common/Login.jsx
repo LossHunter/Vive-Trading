@@ -27,12 +27,12 @@ export default function LoginModel({ onClose }) {
             setLoading(false);
             
             localStorage.setItem("isLogin", true);
-            navigate('/home')
+            navigate('/')
         },
         onError: (error) => {
             console.log('Google 리디렉션 로그인 실패:', error);
             setLoading(false);
-            navigate('/home')
+            navigate('/')
         }
     });
     
