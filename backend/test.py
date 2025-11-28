@@ -80,7 +80,7 @@ SIMULATION_CONFIG = {
     "end_time": datetime(2025, 11, 26, 8, 3, tzinfo=timezone.utc),
     "interval_minutes": 3,  # 3분마다 거래 결정
     "model_name": None,  # None이면 기본 모델 사용
-    "account_id_suffix": "2",  # 시뮬레이션용 계좌 구분 (기존 1-4와 구분)
+    "account_id_suffix": "3",  # 시뮬레이션용 계좌 구분 (기존 1-4와 구분)
     "initial_capital": Decimal("10000000"),  # 초기 자본금 (1000만원)
 }
 
@@ -908,12 +908,12 @@ class HistoricalTradingSimulator:
                 executed_quantity=executed_quantity,
                 balance_before=balance_before,
                 balance_after=balance_after,
-                signal_created_at=signal_created_at,
                 confidence=confidence,
                 justification=justification,
                 thinking=thinking,
                 full_prompt=full_prompt,
                 full_response=full_response,
+                signal_created_at=signal_created_at,
             )
             
             self.db.add(execution)
@@ -931,7 +931,7 @@ class HistoricalTradingSimulator:
             "signal_type": signal.signal,
             "signal_created_at": signal.created_at,
             "intended_price": signal.current_price,
-            "confidence": _to_decimal(signal.confidence) if signal.confidence is not None else None,
+            "confidence": signal.confidence,
             "justification": signal.justification,
             "thinking": signal.thinking,
             "full_prompt": signal.full_prompt,
@@ -979,65 +979,122 @@ class HistoricalTradingSimulator:
             
             # 거래 실행
             if "buy" in signal_type or "enter" in signal_type:
-                # 매수 전 잔액
+                # --- 1) 선검증: KRW 잔액으로 충분히 살 수 있는지 체크 ---
                 balance_before = self.get_account_balance("KRW")
                 execution_record["balance_before"] = balance_before
-                
+
+                if balance_before is None:
+                    # KRW 계좌 자체가 없는 경우
+                    execution_record["balance_after"] = Decimal("0")
+                    execution_record["executed_quantity"] = Decimal("0")
+                    failure_reason = "KRW 계좌를 찾을 수 없습니다. (매수 불가)"
+                    self._save_execution_record(
+                        **execution_record,
+                        execution_status="failed",
+                        failure_reason=failure_reason,
+                    )
+                    return False
+
+                # 필요한 매수 금액 계산
+                estimated_cost = quantity * current_price
+
+                if estimated_cost > balance_before:
+                    # 잔액 부족으로 매수 불가
+                    execution_record["balance_after"] = balance_before
+                    execution_record["executed_quantity"] = Decimal("0")
+                    failure_reason = (
+                        f"매수 금액이 계좌 잔액을 초과합니다. "
+                        f"필요 금액: {estimated_cost:,.0f} KRW, "
+                        f"보유 잔액: {balance_before:,.0f} KRW"
+                    )
+                    self._save_execution_record(
+                        **execution_record,
+                        execution_status="failed",
+                        failure_reason=failure_reason,
+                    )
+                    return False
+
+                # --- 2) 실제 매수 실행 ---
                 success = self.execute_buy(signal.coin, quantity, current_price)
-                
+
                 if success:
                     balance_after = self.get_account_balance("KRW")
                     execution_record["balance_after"] = balance_after
                     execution_record["executed_quantity"] = quantity
                     self._save_execution_record(
                         **execution_record,
-                        execution_status="success"
+                        execution_status="success",
                     )
                 else:
+                    # 여기까지 왔다는 건 잔액은 충분했는데, 내부 로직/예외 등으로 실패한 케이스
                     execution_record["balance_after"] = balance_before
                     execution_record["executed_quantity"] = Decimal("0")
+                    failure_reason = "매수 실행 실패 (내부 오류 또는 미상 원인)"
                     self._save_execution_record(
                         **execution_record,
                         execution_status="failed",
-                        failure_reason="매수 실행 실패"
+                        failure_reason=failure_reason,
                     )
-                
+
                 return success
-            
+
             elif "sell" in signal_type or "exit" in signal_type:
-                # 매도 전 잔액
+                # --- 1) 선검증: 보유 코인이 충분한지 체크 ---
                 balance_before = self.get_account_balance(signal.coin)
                 execution_record["balance_before"] = balance_before
-                
+
+                coin_symbol = signal.coin.upper()
+
+                if balance_before is None:
+                    # 해당 코인 계좌 자체가 없는 경우
+                    execution_record["balance_after"] = Decimal("0")
+                    execution_record["executed_quantity"] = Decimal("0")
+                    failure_reason = f"{coin_symbol} 계좌를 찾을 수 없습니다. (매도 불가)"
+                    self._save_execution_record(
+                        **execution_record,
+                        execution_status="failed",
+                        failure_reason=failure_reason,
+                    )
+                    return False
+
+                if balance_before < quantity:
+                    # 보유 수량 부족
+                    execution_record["balance_after"] = balance_before
+                    execution_record["executed_quantity"] = Decimal("0")
+                    failure_reason = (
+                        f"매도 수량이 보유량을 초과합니다. "
+                        f"의도 수량: {quantity}, 보유 수량: {balance_before} {coin_symbol}"
+                    )
+                    self._save_execution_record(
+                        **execution_record,
+                        execution_status="failed",
+                        failure_reason=failure_reason,
+                    )
+                    return False
+
+                # --- 2) 실제 매도 실행 ---
                 success = self.execute_sell(signal.coin, quantity, current_price)
-                
+
                 if success:
                     balance_after = self.get_account_balance(signal.coin)
                     execution_record["balance_after"] = balance_after
                     execution_record["executed_quantity"] = quantity
                     self._save_execution_record(
                         **execution_record,
-                        execution_status="success"
+                        execution_status="success",
                     )
                 else:
+                    # 여기까지 왔다는 건 수량은 충분했는데, 내부 로직/예외 등으로 실패한 케이스
                     execution_record["balance_after"] = balance_before
                     execution_record["executed_quantity"] = Decimal("0")
+                    failure_reason = "매도 실행 실패 (내부 오류 또는 미상 원인)"
                     self._save_execution_record(
                         **execution_record,
                         execution_status="failed",
-                        failure_reason="매도 실행 실패"
+                        failure_reason=failure_reason,
                     )
-                
+
                 return success
-            
-            else:
-                logger.error(f"❌ 알 수 없는 신호 타입: {signal.signal}")
-                self._save_execution_record(
-                    **execution_record,
-                    execution_status="failed",
-                    failure_reason=f"알 수 없는 신호 타입: {signal.signal}"
-                )
-                return False
         
         except Exception as e:
             logger.error(f"❌ 거래 신호 실행 실패: {e}", exc_info=True)
@@ -1064,7 +1121,8 @@ def _build_system_message(model_name: Optional[str] = None) -> str:
             STRATEGY_PROMPTS[TradingStrategy.AGGRESSIVE]
         )
     
-    return f"""You are a trading decision assistant. You must respond with a valid JSON object that matches the following schema:
+    return f"""You are a professional cryptocurrency trader. Your role is to actively participate in the market. 
+    You must respond with a valid JSON object that matches the following schema:
 
 {schema_str}
 
@@ -1072,7 +1130,7 @@ IMPORTANT RULES:
 
 **Required Fields:**
 - "coin" (string): The cryptocurrency symbol (e.g., "BTC", "ETH")
-- "signal" (string): One of: buy_to_enter, sell_to_exit, hold, close_position, buy, sell, exit
+- "signal" (string): One of: buy, sell, hold, close_position, exit
 
 **Recommended Fields:**
 - "justification" (string): Trade rationale based on market conditions
@@ -1080,9 +1138,9 @@ IMPORTANT RULES:
 - "confidence" (float 0.0-1.0): Confidence level in this decision
 
 **Trading Parameters (REQUIRED for buy/sell signals ONLY):**
-- "quantity" (float): Amount to trade (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
-- "stop_loss" (float): Stop loss price (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
-- "profit_target" (float): Target profit price (REQUIRED for buy_to_enter, sell_to_exit, buy, sell)
+- "quantity" (float): Amount to trade (REQUIRED for buy, sell)
+- "stop_loss" (float): Stop loss price (REQUIRED for buy, sell)
+- "profit_target" (float): Target profit price (REQUIRED for buy, sell)
 - "leverage" (int): MUST ALWAYS BE 1 (Upbit does not support leverage trading)
 - "risk_usd" (float): Risk amount in USD (optional but recommended)
 
@@ -1095,6 +1153,20 @@ IMPORTANT RULES:
   - invalidation_condition: null
 - HOLD means "do nothing", so trading parameters are not needed
 - Only provide justification, thinking, and confidence for HOLD signals
+
+**HOLD Usage Conditions (IMPORTANT):**
+- You may use "hold" only when the market conditions strongly indicate that no directional bias exists. 
+- Examples include: 
+1) price compressed in a tight range with no breakout attempts 
+2) contradictory signals across indicators 
+3) extremely low volatility with no trend formation 
+- However, uncertainty alone does NOT justify choosing "hold". 
+- When indicators appear mixed or contradictory, you must determine which signals have stronger market impact and choose a buy or sell action whenever any directional bias exists. 
+- Sideways or consolidating markets do NOT automatically justify a "hold". 
+- If the market is range-bound, evaluate whether the price is near the range high (sell) or range low (buy). 
+- Use "hold" only when the range provides no actionable opportunity. 
+- Do not default to "hold"; make a trading decision whenever reasonable directional clues exist.
+
 
 **Response Format:**
 - Return ONLY the JSON object, nothing else
@@ -1227,16 +1299,21 @@ Based on the information above, please make a trading decision. You must respond
             return None
         
         validated_decision = TradeDecision(**decision_data)
-        
+
         # 검증
         is_valid, validation_errors = validate_trade_decision(
             validated_decision,
             account_id,
             db,
             prompt_id=prompt_data.id,
-            signal_created_at=simulation_time
+            signal_created_at=simulation_time,
+            confidence=_to_decimal(validated_decision.confidence),
+            justification=validated_decision.justification,
+            thinking=thinking_part,
+            full_prompt=full_prompt_for_training,
+            full_response=full_response,
         )
-        
+
         if not is_valid:
             logger.warning(f"⚠️ 검증 실패: {validation_errors}")
             logger.info("📝 검증 실패 기록은 llm_trading_execution에만 저장됩니다.")
@@ -1324,16 +1401,32 @@ Based on the information above, please make a trading decision. You must respond
                     return None
                 
                 retry_decision = TradeDecision(**retry_decision_data)
-                
+                # 재요청용 full_prompt 구성 (ORPO 학습용)
+                retry_full_prompt_for_training = f"""=== SYSTEM PROMPT ===
+{system_content}
+
+=== USER PROMPT (RETRY) ===
+{retry_prompt_text}
+"""
+
                 # 재요청 결과 검증
                 retry_is_valid, retry_validation_errors = validate_trade_decision(
                     retry_decision,
                     account_id,
                     db,
                     prompt_id=prompt_data.id,
-                    signal_created_at=simulation_time
+                    signal_created_at=simulation_time,
+                    confidence=_to_decimal(retry_decision.confidence),
+                    justification=retry_decision.justification,
+                    thinking=retry_thinking,
+                    full_prompt=retry_full_prompt_for_training,
+                    full_response=retry_raw_content,
                 )
                 
+                logger.info("=" * 80)
+                logger.info(f"🔍 [TEST.PY] 재요청 검증 완료 - 결과: is_valid={retry_is_valid}, errors={retry_validation_errors}")
+                logger.info("=" * 80)
+
                 if retry_is_valid:
                     logger.info("✅ 재요청 검증 통과!")
                     validated_decision = retry_decision
@@ -1341,12 +1434,14 @@ Based on the information above, please make a trading decision. You must respond
                     full_response = retry_raw_content  # 재요청 응답으로 업데이트
                 else:
                     logger.error(f"❌ 재요청도 검증 실패: {retry_validation_errors}")
-                    return None
                     
+                    
+                    return None
+
             except Exception as e:
                 logger.error(f"❌ 재요청 실패: {e}", exc_info=True)
-                return None
-        
+                return None        
+
         # current_price 조회 (시뮬레이션 시점 기준) - HistoricalDataQuerier 사용
         coin_upper = validated_decision.coin.upper()
         market = f"KRW-{coin_upper}"
@@ -1386,11 +1481,6 @@ Based on the information above, please make a trading decision. You must respond
         db.add(signal)
         db.commit()
         db.refresh(signal)
-        
-        logger.info(f"✅ 거래 신호 저장 완료 (ID: {signal.id}, 코인: {validated_decision.coin}, 신호: {validated_decision.signal})")
-        logger.debug(f"   thinking 길이: {len(thinking_part) if thinking_part else 0} 문자")
-        logger.debug(f"   full_prompt 길이: {len(full_prompt_for_training)} 문자")
-        logger.debug(f"   full_response 길이: {len(full_response)} 문자")
         
         return validated_decision
     

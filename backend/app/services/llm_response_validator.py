@@ -45,6 +45,11 @@ def _save_validation_failure(
     executed_quantity: Optional[Decimal] = None,
     balance_before: Optional[Decimal] = None,
     balance_after: Optional[Decimal] = None,
+    confidence: Optional[Decimal] = None,
+    justification: Optional[str] = None,
+    thinking: Optional[str] = None,
+    full_prompt: Optional[str] = None,
+    full_response: Optional[str] = None,
     signal_created_at: Optional[datetime] = None
 ) -> None:
     """
@@ -64,6 +69,11 @@ def _save_validation_failure(
             executed_quantity=executed_quantity,
             balance_before=balance_before,
             balance_after=balance_after,
+            confidence=confidence,
+            justification=justification,
+            thinking=thinking,
+            full_prompt=full_prompt,
+            full_response=full_response,
             signal_created_at=signal_created_at
         )
         db.add(execution)
@@ -79,7 +89,12 @@ def validate_trade_decision(
     account_id: Optional[UUID],
     db: Session,
     prompt_id: Optional[int] = None,
-    signal_created_at: Optional[datetime] = None
+    signal_created_at: Optional[datetime] = None,
+    confidence: Optional[Decimal] = None,
+    justification: Optional[str] = None,
+    thinking: Optional[str] = None,
+    full_prompt: Optional[str] = None,
+    full_response: Optional[str] = None,
 ) -> Tuple[bool, List[str]]:
     """
     LLM 거래 신호 검증
@@ -121,6 +136,17 @@ def validate_trade_decision(
                 signal_type=signal_type,
                 execution_status="failed",
                 failure_reason=", ".join(errors),
+                intended_price=None,
+                executed_price=None,
+                intended_quantity=None,
+                executed_quantity=None,
+                balance_before=None,
+                balance_after=None,
+                confidence=confidence,
+                justification=justification,
+                thinking=thinking,
+                full_prompt=full_prompt,
+                full_response=full_response,
                 signal_created_at=signal_created_at
             )
     
@@ -143,6 +169,17 @@ def validate_trade_decision(
                 signal_type=signal_type,
                 execution_status="failed",
                 failure_reason=error_msg,
+                intended_price=None,
+                executed_price=None,
+                intended_quantity=None,
+                executed_quantity=None,
+                balance_before=None,
+                balance_after=None,
+                confidence=confidence,
+                justification=justification,
+                thinking=thinking,
+                full_prompt=full_prompt,
+                full_response=full_response,
                 signal_created_at=signal_created_at
             )
     
@@ -204,6 +241,12 @@ def validate_trade_decision(
                                     failure_reason=error_msg,
                                     intended_quantity=quantity,
                                     balance_before=krw_balance,
+                                    balance_after=None,
+                                    confidence=confidence,
+                                    justification=justification,
+                                    thinking=thinking,
+                                    full_prompt=full_prompt,
+                                    full_response=full_response,
                                     signal_created_at=signal_created_at
                                 )
             
@@ -240,6 +283,12 @@ def validate_trade_decision(
                                 failure_reason=error_msg,
                                 intended_quantity=quantity,
                                 balance_before=coin_balance,
+                                balance_after=None,
+                                confidence=confidence,
+                                justification=justification,
+                                thinking=thinking,
+                                full_prompt=full_prompt,
+                                full_response=full_response,
                                 signal_created_at=signal_created_at
                             )
         
@@ -311,7 +360,12 @@ def validate_execution_result(
     balance_before: Optional[Decimal],
     balance_after: Optional[Decimal],
     signal_created_at: Optional[datetime],
-    slippage_skipped: bool = False
+    slippage_skipped: bool = False,
+    confidence: Optional[Decimal] = None,
+    justification: Optional[str] = None,
+    thinking: Optional[str] = None,
+    full_prompt: Optional[str] = None,
+    full_response: Optional[str] = None,
 ) -> LLMTradingExecution:
     """
     거래 실행 결과 검증 및 llm_trading_execution 저장
@@ -417,6 +471,11 @@ def validate_execution_result(
         executed_quantity=executed_quantity,
         balance_before=balance_before,
         balance_after=balance_after,
+        confidence=confidence,
+        justification=justification,
+        thinking=thinking,
+        full_prompt=full_prompt,
+        full_response=full_response,
         signal_created_at=signal_created_at
     )
     
